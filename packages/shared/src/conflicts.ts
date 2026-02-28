@@ -1,0 +1,276 @@
+// Conflict configuration registry
+// To add a new conflict: add one ConflictConfig object to ALL_CONFLICTS. Nothing else.
+
+export interface MilitaryBase {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  type: 'airbase' | 'naval' | 'army' | 'combined'
+  party: string         // shortCode of the party that operates it
+  country: string
+}
+
+export interface NuclearSite {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  status: 'active' | 'suspected' | 'modified' | 'operational' | 'shutdown'
+  enrichment: string
+  notes?: string
+}
+
+export interface SamSite {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  system: string        // 'S-300PMU2', 'Bavar-373', etc.
+  range_km: number
+  party: string
+}
+
+export interface Chokepoint {
+  id: string
+  name: string
+  lat: number
+  lon: number
+  radius_km: number
+}
+
+export interface ConflictConfig {
+  slug: string
+  name: string
+  shortName: string
+  description: string
+  status: 'active' | 'frozen' | 'monitoring'
+  intensity: 'critical' | 'high' | 'elevated' | 'low'
+  startDate: string
+
+  parties: {
+    name: string
+    shortCode: string
+    color: string
+    flagEmoji: string
+  }[]
+
+  map: {
+    center: [number, number]    // [lon, lat]
+    zoom: number
+    bounds: { latMin: number; latMax: number; lonMin: number; lonMax: number }
+    theaters: {
+      id: string
+      name: string
+      bounds: { latMin: number; latMax: number; lonMin: number; lonMax: number }
+    }[]
+  }
+
+  dataSources: {
+    adsb: {
+      enabled: boolean
+      queryPoints: { lat: number; lon: number; radiusNm: number }[]
+    }
+    ais: {
+      enabled: boolean
+      boundingBoxes: [[number, number], [number, number]][]
+    }
+    gdelt: {
+      enabled: boolean
+      keywords: string[]
+      cameoRootCodes: string[]
+    }
+    acled: {
+      enabled: boolean
+      regions: number[]
+      countries: string[]
+    }
+    telegram: {
+      channels: string[]
+    }
+  }
+
+  overlays: {
+    bases: MilitaryBase[]
+    nuclearSites?: NuclearSite[]
+    samSites?: SamSite[]
+    chokepoints?: Chokepoint[]
+  }
+
+  card: {
+    accentColor: string
+    keyMetrics: string[]
+  }
+}
+
+// ─── US–Iran ──────────────────────────────────────────────────────────────────
+
+export const US_IRAN: ConflictConfig = {
+  slug: 'us-iran',
+  name: 'US–Iran',
+  shortName: 'Persian Gulf',
+  description: 'US-Iran tensions across the Persian Gulf, Strait of Hormuz, and broader CENTCOM theater.',
+  status: 'active',
+  intensity: 'high',
+  startDate: '1979-11-04',
+  parties: [
+    { name: 'United States',    shortCode: 'US',  color: '#00b0ff', flagEmoji: '🇺🇸' },
+    { name: 'Iran',             shortCode: 'IR',  color: '#ef4444', flagEmoji: '🇮🇷' },
+    { name: 'Israel',           shortCode: 'IL',  color: '#22c55e', flagEmoji: '🇮🇱' },
+    { name: 'US Allies (Gulf)', shortCode: 'GCC', color: '#f59e0b', flagEmoji: '🤝' },
+  ],
+  map: {
+    center: [51.0, 27.0],
+    zoom: 5,
+    bounds: { latMin: 12, latMax: 42, lonMin: 30, lonMax: 70 },
+    theaters: [
+      { id: 'persian_gulf',     name: 'Persian Gulf',     bounds: { latMin: 23, latMax: 30, lonMin: 47, lonMax: 57 } },
+      { id: 'strait_of_hormuz', name: 'Strait of Hormuz', bounds: { latMin: 25, latMax: 27, lonMin: 55, lonMax: 58 } },
+      { id: 'gulf_of_oman',     name: 'Gulf of Oman',     bounds: { latMin: 22, latMax: 26, lonMin: 57, lonMax: 63 } },
+      { id: 'red_sea',          name: 'Red Sea',          bounds: { latMin: 12, latMax: 30, lonMin: 32, lonMax: 45 } },
+    ],
+  },
+  dataSources: {
+    adsb: {
+      enabled: true,
+      queryPoints: [
+        { lat: 27.0, lon: 51.0, radiusNm: 250 },
+        { lat: 33.0, lon: 53.0, radiusNm: 250 },
+        { lat: 20.0, lon: 39.0, radiusNm: 250 },
+      ],
+    },
+    ais: {
+      enabled: true,
+      boundingBoxes: [
+        [[23.0, 48.0], [30.0, 57.0]],
+        [[25.5, 55.5], [27.0, 57.0]],
+        [[22.0, 57.0], [26.0, 62.0]],
+        [[12.0, 32.0], [30.0, 44.0]],
+      ],
+    },
+    gdelt: {
+      enabled: true,
+      keywords: ['Iran', 'IRGC', 'Hormuz', 'Natanz', 'Fordow', 'Houthi', 'Persian Gulf'],
+      cameoRootCodes: ['14', '15', '18', '19', '20'],
+    },
+    acled: {
+      enabled: true,
+      regions: [11],
+      countries: ['IRN', 'IRQ', 'YEM', 'SAU', 'ISR', 'LBN', 'SYR'],
+    },
+    telegram: { channels: [] },
+  },
+  overlays: {
+    bases: [
+      { id: 'al-udeid',      name: 'Al Udeid AB',        lat: 25.1173, lon: 51.3150, type: 'airbase',  party: 'US',  country: 'Qatar' },
+      { id: 'al-dhafra',     name: 'Al Dhafra AB',       lat: 24.2481, lon: 54.5483, type: 'airbase',  party: 'US',  country: 'UAE' },
+      { id: 'bahrain-5th',   name: 'NSA Bahrain (5th Fleet)', lat: 26.2361, lon: 50.5954, type: 'naval', party: 'US', country: 'Bahrain' },
+      { id: 'camp-arifjan',  name: 'Camp Arifjan',       lat: 29.1130, lon: 48.0851, type: 'army',    party: 'US',  country: 'Kuwait' },
+      { id: 'prince-sultan', name: 'Prince Sultan AB',   lat: 24.0627, lon: 47.5802, type: 'airbase',  party: 'US',  country: 'Saudi Arabia' },
+      { id: 'bandar-abbas',  name: 'Bandar Abbas',       lat: 27.2189, lon: 56.3639, type: 'naval',   party: 'IR',  country: 'Iran' },
+      { id: 'bushehr-ab',    name: 'Bushehr AB',         lat: 28.9448, lon: 50.8347, type: 'airbase',  party: 'IR',  country: 'Iran' },
+      { id: 'isfahan-ab',    name: 'Isfahan AB',         lat: 32.6207, lon: 51.6611, type: 'airbase',  party: 'IR',  country: 'Iran' },
+    ],
+    nuclearSites: [
+      { id: 'natanz',   name: 'Natanz FEP',   lat: 33.7235, lon: 51.7271, status: 'active',      enrichment: '60%' },
+      { id: 'fordow',   name: 'Fordow FFEP',  lat: 34.8846, lon: 50.9960, status: 'active',      enrichment: '84%' },
+      { id: 'isfahan',  name: 'Isfahan UCF',  lat: 32.6569, lon: 51.6764, status: 'active',      enrichment: 'conversion' },
+      { id: 'arak',     name: 'Arak IR-40',   lat: 34.3734, lon: 49.2408, status: 'modified',    enrichment: 'n/a' },
+      { id: 'bushehr',  name: 'Bushehr NPP',  lat: 28.8314, lon: 50.8883, status: 'operational', enrichment: 'power reactor' },
+      { id: 'parchin',  name: 'Parchin',      lat: 35.5167, lon: 51.7667, status: 'suspected',   enrichment: 'weapons research' },
+    ],
+    samSites: [
+      { id: 'sam-isfahan',    name: 'S-300 Isfahan',       lat: 32.657, lon: 51.676, system: 'S-300PMU2',  range_km: 200, party: 'IR' },
+      { id: 'sam-tehran-s',   name: 'S-300 Tehran South',  lat: 35.45,  lon: 51.15,  system: 'S-300PMU2',  range_km: 200, party: 'IR' },
+      { id: 'sam-fordow',     name: 'Bavar-373 Fordow',    lat: 34.884, lon: 50.996, system: 'Bavar-373',  range_km: 200, party: 'IR' },
+      { id: 'sam-tehran-n',   name: 'Khordad-15 Tehran N', lat: 35.75,  lon: 51.30,  system: 'Khordad-15', range_km: 120, party: 'IR' },
+    ],
+    chokepoints: [
+      { id: 'hormuz',      name: 'Strait of Hormuz', lat: 26.5, lon: 56.3, radius_km: 50 },
+      { id: 'bab-mandeb',  name: 'Bab el-Mandeb',    lat: 12.6, lon: 43.3, radius_km: 40 },
+    ],
+  },
+  card: {
+    accentColor: '#ef4444',
+    keyMetrics: ['Aircraft tracked', 'AIS vessels', 'Incidents 24h', 'Strait status'],
+  },
+}
+
+// ─── Israel–Gaza ──────────────────────────────────────────────────────────────
+
+export const ISRAEL_GAZA: ConflictConfig = {
+  slug: 'israel-gaza',
+  name: 'Israel–Gaza',
+  shortName: 'Levant',
+  description: 'Israel-Gaza conflict, West Bank tensions, Lebanese front, and regional escalation.',
+  status: 'active',
+  intensity: 'critical',
+  startDate: '2023-10-07',
+  parties: [
+    { name: 'Israel',       shortCode: 'IL', color: '#00b0ff', flagEmoji: '🇮🇱' },
+    { name: 'Hamas / Gaza', shortCode: 'PS', color: '#ef4444', flagEmoji: '🇵🇸' },
+    { name: 'Hezbollah',    shortCode: 'LB', color: '#f97316', flagEmoji: '🇱🇧' },
+    { name: 'UNRWA / Aid',  shortCode: 'UN', color: '#94a3b8', flagEmoji: '🇺🇳' },
+  ],
+  map: {
+    center: [35.2, 31.8],
+    zoom: 7,
+    bounds: { latMin: 27, latMax: 38, lonMin: 28, lonMax: 42 },
+    theaters: [
+      { id: 'gaza',      name: 'Gaza Strip',    bounds: { latMin: 31.2, latMax: 31.6, lonMin: 34.2, lonMax: 34.6 } },
+      { id: 'west-bank', name: 'West Bank',     bounds: { latMin: 31.3, latMax: 32.6, lonMin: 34.8, lonMax: 35.6 } },
+      { id: 'lebanon',   name: 'Lebanon Front', bounds: { latMin: 33.0, latMax: 34.7, lonMin: 35.0, lonMax: 36.7 } },
+      { id: 'syria',     name: 'Syria',         bounds: { latMin: 32.0, latMax: 37.5, lonMin: 36.0, lonMax: 42.5 } },
+    ],
+  },
+  dataSources: {
+    adsb: {
+      enabled: true,
+      queryPoints: [
+        { lat: 31.8, lon: 35.2, radiusNm: 200 },
+        { lat: 33.8, lon: 36.0, radiusNm: 150 },
+      ],
+    },
+    ais: {
+      enabled: true,
+      boundingBoxes: [
+        [[29.0, 32.0], [34.0, 37.0]],
+        [[27.0, 32.5], [32.0, 35.5]],
+      ],
+    },
+    gdelt: {
+      enabled: true,
+      keywords: ['Israel', 'Gaza', 'Hamas', 'Hezbollah', 'West Bank', 'IDF', 'Netanyahu'],
+      cameoRootCodes: ['14', '15', '18', '19', '20'],
+    },
+    acled: {
+      enabled: true,
+      regions: [11],
+      countries: ['ISR', 'PSE', 'LBN', 'SYR', 'JOR'],
+    },
+    telegram: { channels: [] },
+  },
+  overlays: {
+    bases: [
+      { id: 'tel-nof',   name: 'Tel Nof AB',    lat: 31.840, lon: 34.818, type: 'airbase', party: 'IL', country: 'Israel' },
+      { id: 'hatzerim',  name: 'Hatzerim AB',   lat: 31.225, lon: 34.664, type: 'airbase', party: 'IL', country: 'Israel' },
+      { id: 'ramat-david', name: 'Ramat David AB', lat: 32.665, lon: 35.179, type: 'airbase', party: 'IL', country: 'Israel' },
+    ],
+    chokepoints: [
+      { id: 'suez',  name: 'Suez Canal',   lat: 30.7,  lon: 32.3,  radius_km: 30 },
+      { id: 'aqaba', name: 'Gulf of Aqaba', lat: 29.5, lon: 34.9,  radius_km: 25 },
+    ],
+  },
+  card: {
+    accentColor: '#00b0ff',
+    keyMetrics: ['Aircraft tracked', 'Incidents 24h', 'Airstrikes', 'Casualties reported'],
+  },
+}
+
+// ─── Registry ─────────────────────────────────────────────────────────────────
+
+export const ALL_CONFLICTS: ConflictConfig[] = [US_IRAN, ISRAEL_GAZA]
+
+export function getConflict(slug: string): ConflictConfig | undefined {
+  return ALL_CONFLICTS.find(c => c.slug === slug)
+}
