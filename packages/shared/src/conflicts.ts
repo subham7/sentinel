@@ -131,7 +131,7 @@ export const US_IRAN: ConflictConfig = {
   map: {
     center: [51.0, 27.0],
     zoom: 5,
-    bounds: { latMin: -90, latMax: 90, lonMin: -180, lonMax: 180 },
+    bounds: { latMin: 8, latMax: 42, lonMin: 22, lonMax: 80 },
     theaters: [
       { id: 'persian_gulf',     name: 'Persian Gulf',     bounds: { latMin: 23, latMax: 30, lonMin: 47, lonMax: 57 } },
       { id: 'strait_of_hormuz', name: 'Strait of Hormuz', bounds: { latMin: 25, latMax: 27, lonMin: 55, lonMax: 58 } },
@@ -139,7 +139,6 @@ export const US_IRAN: ConflictConfig = {
       { id: 'red_sea',          name: 'Red Sea',          bounds: { latMin: 12, latMax: 30, lonMin: 32, lonMax: 45 } },
       { id: 'eastern_med',      name: 'Eastern Med',      bounds: { latMin: 30, latMax: 42, lonMin: 20, lonMax: 37 } },
       { id: 'arabian_sea',      name: 'Arabian Sea',      bounds: { latMin: 10, latMax: 25, lonMin: 55, lonMax: 75 } },
-      { id: 'central_europe',   name: 'Central Europe',   bounds: { latMin: 44, latMax: 58, lonMin:  5, lonMax: 25 } },
     ],
   },
   dataSources: {
@@ -148,27 +147,11 @@ export const US_IRAN: ConflictConfig = {
       queryPoints: [
         // ── Core CENTCOM theater ──────────────────────────────────────────
         { lat: 27.0, lon: 51.0, radiusNm: 250 },   // Persian Gulf
-        { lat: 33.0, lon: 53.0, radiusNm: 250 },   // Iran (center)
+        { lat: 33.0, lon: 53.0, radiusNm: 250 },   // Iran interior
         { lat: 20.0, lon: 39.0, radiusNm: 250 },   // Red Sea / Yemen
-        // ── Extended CENTCOM / AFRICOM ────────────────────────────────────
         { lat: 17.0, lon: 63.0, radiusNm: 250 },   // Arabian Sea (carrier ops, P-8 patrols)
-        { lat: 11.0, lon: 43.0, radiusNm: 250 },   // Djibouti / Horn of Africa (Camp Lemonnier)
-        { lat: 34.0, lon: 68.0, radiusNm: 250 },   // Pakistan / Afghanistan / Central Asia
-        // ── EUCOM / Eastern Med ───────────────────────────────────────────
         { lat: 37.0, lon: 28.0, radiusNm: 250 },   // Eastern Med / Turkey (İncirlik, Akrotiri)
-        { lat: 49.5, lon: 10.0, radiusNm: 250 },   // Central Europe / Germany (Ramstein, Spangdahlem)
-        { lat: 51.0, lon: -1.0, radiusNm: 250 },   // UK / Western Europe (RAF Fairford B-52s, USAFE)
-        // ── CONUS / North America ─────────────────────────────────────────
-        { lat: 38.0, lon: -97.0,  radiusNm: 250 }, // Central CONUS (Whiteman, McConnell, Tinker, Barksdale)
-        { lat: 44.0, lon: -120.0, radiusNm: 250 }, // Pacific NW / Mountain West (Fairchild, Malmstrom)
-        { lat: 33.0, lon: -117.0, radiusNm: 250 }, // Southern California (Edwards, March, Miramar)
-        { lat: 41.0, lon: -74.0,  radiusNm: 250 }, // Northeast CONUS (Andrews, Langley, McGuire, Stewart)
-        { lat: 30.0, lon: -85.0,  radiusNm: 250 }, // Southeast CONUS (Eglin, Tyndall, Moody, Shaw)
-        // ── US Pacific / Overseas ─────────────────────────────────────────
-        { lat: 64.0, lon: -153.0, radiusNm: 250 }, // Alaska (Elmendorf-Richardson, Eielson AFB)
-        { lat: 21.0, lon: -157.0, radiusNm: 250 }, // Hawaii (Hickam/JBPHH, Kaneohe Bay MCAS)
-        { lat: 13.5, lon: 144.8,  radiusNm: 250 }, // Guam (Andersen AFB — B-52 forward deployments)
-        { lat: -7.3, lon: 72.4,   radiusNm: 250 }, // Diego Garcia (CENTCOM bomber hub — B-2, B-52)
+        { lat: -7.3, lon: 72.4, radiusNm: 250 },   // Diego Garcia (CENTCOM bomber hub)
       ],
     },
     ais: {
