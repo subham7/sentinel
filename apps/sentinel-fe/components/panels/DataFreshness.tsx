@@ -16,11 +16,11 @@ interface Props {
 }
 
 const DEFAULT_SOURCES: Source[] = [
-  { id: 'adsb',    label: 'ADS-B',    status: 'disabled' },
-  { id: 'ais',     label: 'AIS',      status: 'disabled' },
-  { id: 'gdelt',   label: 'GDELT',    status: 'disabled' },
-  { id: 'acled',   label: 'ACLED',    status: 'disabled' },
-  { id: 'telegram',label: 'TELEGRAM', status: 'disabled' },
+  { id: 'adsb',    label: 'ADS-B',    status: 'fresh' },
+  { id: 'ais',     label: 'AIS',      status: 'fresh' },
+  { id: 'gdelt',   label: 'GDELT',    status: 'fresh' },
+  { id: 'acled',   label: 'ACLED',    status: 'fresh' },
+  { id: 'telegram',label: 'TELEGRAM', status: 'fresh' },
 ]
 
 export default function DataFreshness({ sources = DEFAULT_SOURCES }: Props) {
@@ -78,7 +78,7 @@ export default function DataFreshness({ sources = DEFAULT_SOURCES }: Props) {
         fontFamily:    "'Share Tech Mono', monospace",
         letterSpacing: '0.08em',
       }}>
-        // PHASE 0 — NO LIVE DATA
+        // PHASE 3 — ADS-B + AIS + OSINT LIVE
       </span>
     </div>
   )

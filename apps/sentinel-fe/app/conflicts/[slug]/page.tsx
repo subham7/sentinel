@@ -4,9 +4,14 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { getConflict } from '@sentinel/shared'
-import type { ConflictConfig } from '@sentinel/shared'
+import type { ConflictConfig, Aircraft, Vessel, Incident } from '@sentinel/shared'
 import type { LayerState } from '@/components/map/TheaterMap'
 import DataFreshness from '@/components/panels/DataFreshness'
+import HormuzWidget from '@/components/panels/HormuzWidget'
+import IncidentFeed from '@/components/panels/IncidentFeed'
+import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
+import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
+import { useIncidentSSE } from '@/hooks/useIncidentSSE'
 
 const TheaterMap = dynamic(
   () => import('@/components/map/TheaterMap'),
@@ -16,19 +21,13 @@ const TheaterMap = dynamic(
 function MapSkeleton() {
   return (
     <div style={{
-      width:          '100%',
-      height:         '100%',
-      background:     '#050810',
-      display:        'flex',
-      alignItems:     'center',
-      justifyContent: 'center',
+      width: '100%', height: '100%', background: '#050810',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       <span style={{
-        fontFamily:    "'Share Tech Mono', monospace",
-        fontSize:       11,
-        color:         '#475569',
-        letterSpacing: '0.15em',
-        animation:     'pulse-opacity 1.5s ease-in-out infinite',
+        fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
+        color: '#475569', letterSpacing: '0.15em',
+        animation: 'pulse-opacity 1.5s ease-in-out infinite',
       }}>
         INITIALISING THEATER MAP...
       </span>
@@ -50,10 +49,8 @@ function ZuluClock() {
   }, [])
   return (
     <span style={{
-      fontFamily:    "'Share Tech Mono', monospace",
-      fontSize:       12,
-      color:         'var(--text-secondary)',
-      letterSpacing: '0.06em',
+      fontFamily: "'Share Tech Mono', monospace",
+      fontSize: 12, color: 'var(--text-secondary)', letterSpacing: '0.06em',
     }}>
       {time}
     </span>
@@ -61,13 +58,23 @@ function ZuluClock() {
 }
 
 const INTENSITY_COLORS: Record<string, string> = {
-  critical: '#ef4444',
-  high:     '#f97316',
-  elevated: '#eab308',
-  low:      '#22c55e',
+  critical: '#ef4444', high: '#f97316', elevated: '#eab308', low: '#22c55e',
 }
 
-// ── Layer control panel ────────────────────────────────────
+const PARTY_COLORS: Record<string, string> = {
+  US: '#00b0ff', IR: '#ef4444', IL: '#22c55e',
+  GCC: '#f59e0b', PS: '#ef4444', LB: '#f97316', UN: '#94a3b8',
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  fighter: 'FTR', tanker: 'TKR', isr: 'ISR', transport: 'TRN', uav: 'UAV', unknown: '???',
+}
+
+const VESSEL_TYPE_LABELS: Record<string, string> = {
+  warship: 'WAR', tanker: 'TNK', cargo: 'CRG', fast_boat: 'FAB', submarine: 'SUB', unknown: '???',
+}
+
+// ── Layer control panel ────────────────────────────────────────────────────────
 
 interface LayerControlProps {
   conflict: ConflictConfig
@@ -79,6 +86,10 @@ function LayerControl({ conflict, layers, onChange }: LayerControlProps) {
   const [open, setOpen] = useState(false)
 
   const controls: { key: keyof LayerState; label: string; available: boolean }[] = [
+    { key: 'aircraft',    label: 'Aircraft',        available: true },
+    { key: 'vessels',     label: 'Vessels',         available: conflict.dataSources.ais.enabled },
+    { key: 'incidents',   label: 'Incidents',       available: true },
+    { key: 'heatmap',     label: 'Heat Map',        available: true },
     { key: 'bases',       label: 'Military Bases',  available: conflict.overlays.bases.length > 0 },
     { key: 'nuclear',     label: 'Nuclear Sites',   available: (conflict.overlays.nuclearSites?.length ?? 0) > 0 },
     { key: 'sam',         label: 'SAM Coverage',    available: (conflict.overlays.samSites?.length ?? 0) > 0 },
@@ -86,28 +97,15 @@ function LayerControl({ conflict, layers, onChange }: LayerControlProps) {
   ]
 
   return (
-    <div style={{
-      position:   'absolute',
-      top:         12,
-      left:        12,
-      zIndex:      10,
-      fontFamily: "'Share Tech Mono', monospace",
-    }}>
+    <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, fontFamily: "'Share Tech Mono', monospace" }}>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
-          display:       'flex',
-          alignItems:    'center',
-          gap:            6,
-          padding:       '5px 10px',
-          background:   'var(--bg-elevated)',
-          border:        '1px solid var(--border-bright)',
-          borderRadius:   4,
-          color:         'var(--text-secondary)',
-          fontSize:       10,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          cursor:        'pointer',
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '5px 10px',
+          background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)',
+          borderRadius: 4, color: 'var(--text-secondary)',
+          fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
         }}
       >
         ≡ LAYERS
@@ -115,32 +113,22 @@ function LayerControl({ conflict, layers, onChange }: LayerControlProps) {
 
       {open && (
         <div style={{
-          marginTop:  4,
-          background: 'var(--bg-elevated)',
-          border:     '1px solid var(--border)',
-          borderRadius: 4,
-          padding:    '8px 0',
-          minWidth:    170,
+          marginTop: 4, background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)', borderRadius: 4,
+          padding: '8px 0', minWidth: 170,
         }}>
           <div style={{
-            fontSize:      9,
-            color:        'var(--text-muted)',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            padding:      '0 12px 6px',
-            borderBottom: '1px solid var(--border)',
-            marginBottom:  4,
+            fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em',
+            textTransform: 'uppercase', padding: '0 12px 6px',
+            borderBottom: '1px solid var(--border)', marginBottom: 4,
           }}>
-            Static Overlays
+            Layer Toggles
           </div>
           {controls.map(({ key, label, available }) => (
             <label key={key} style={{
-              display:       'flex',
-              alignItems:    'center',
-              gap:            8,
-              padding:       '5px 12px',
-              cursor:         available ? 'pointer' : 'default',
-              opacity:        available ? 1 : 0.4,
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '5px 12px',
+              cursor: available ? 'pointer' : 'default', opacity: available ? 1 : 0.4,
             }}>
               <input
                 type="checkbox"
@@ -150,16 +138,14 @@ function LayerControl({ conflict, layers, onChange }: LayerControlProps) {
                 style={{ accentColor: '#00b0ff', width: 12, height: 12 }}
               />
               <span style={{
-                fontSize:      10,
-                color:         layers[key] ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontSize: 10,
+                color: layers[key] ? 'var(--text-primary)' : 'var(--text-muted)',
                 letterSpacing: '0.06em',
               }}>
                 {label}
               </span>
               {!available && (
-                <span style={{ fontSize: 8, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                  N/A
-                </span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)', marginLeft: 'auto' }}>N/A</span>
               )}
             </label>
           ))}
@@ -169,130 +155,320 @@ function LayerControl({ conflict, layers, onChange }: LayerControlProps) {
   )
 }
 
-// ── Left sidebar: bases list ───────────────────────────────
+// ── Track list / Bases panel (left sidebar) ───────────────────────────────────
 
-function BasesPanel({ conflict }: { conflict: ConflictConfig }) {
+interface TrackListProps {
+  conflict:          ConflictConfig
+  aircraft:          Aircraft[]
+  vessels:           Vessel[]
+  selectedAircraftId: string | null
+  selectedVesselId:   string | null
+  onSelectAircraft:   (id: string | null) => void
+  onSelectVessel:     (id: string | null) => void
+}
+
+type TrackTab = 'air' | 'sea'
+
+function TrackList({
+  conflict,
+  aircraft,
+  vessels,
+  selectedAircraftId,
+  selectedVesselId,
+  onSelectAircraft,
+  onSelectVessel,
+}: TrackListProps) {
+  const [tab, setTab] = useState<TrackTab>('air')
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1, padding: '5px 0', textAlign: 'center',
+    fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase' as const,
+    color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+    background: active ? 'var(--bg-overlay)' : 'transparent',
+    border: 'none', borderBottom: active ? '1px solid #00b0ff' : '1px solid transparent',
+    cursor: 'pointer', fontFamily: "'Share Tech Mono', monospace",
+  })
+
   return (
     <div style={{
-      width:          220,
-      flexShrink:     0,
-      background:    'var(--bg-surface)',
-      borderRight:   '1px solid var(--border)',
-      display:        'flex',
-      flexDirection:  'column',
-      overflow:       'hidden',
+      width: 220, flexShrink: 0,
+      background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      <div style={{
-        padding:       '8px 12px',
-        borderBottom:  '1px solid var(--border)',
-        display:        'flex',
-        justifyContent: 'space-between',
-        alignItems:     'center',
-        flexShrink:     0,
-      }}>
-        <span style={{ fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          Known Bases
-        </span>
-        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-          {conflict.overlays.bases.length}
-        </span>
+      {/* Tab header */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <button style={tabStyle(tab === 'air')} onClick={() => setTab('air')}>
+          ✈ Air ({aircraft.length})
+        </button>
+        <button style={tabStyle(tab === 'sea')} onClick={() => setTab('sea')}>
+          ⚓ Sea ({vessels.length})
+        </button>
       </div>
 
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {conflict.overlays.bases.map(base => {
-          const PARTY_COLORS: Record<string, string> = {
-            US: '#00b0ff', IR: '#ef4444', IL: '#22c55e',
-            GCC: '#f59e0b', PS: '#ef4444', LB: '#f97316',
-          }
-          const color = PARTY_COLORS[base.party] ?? '#94a3b8'
-          return (
-            <div key={base.id} style={{
-              padding:    '6px 12px',
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
-              borderLeft: `2px solid ${color}`,
-            }}>
-              <div style={{
-                display:        'flex',
-                justifyContent: 'space-between',
-                alignItems:     'center',
-              }}>
-                <span style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600 }}>
-                  {base.name}
-                </span>
-                <span style={{
-                  fontSize:      9,
-                  color,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
+        {tab === 'air' ? (
+          aircraft.length > 0 ? aircraft.map(ac => {
+            const color      = PARTY_COLORS[ac.side] ?? '#94a3b8'
+            const isSelected = ac.icao24 === selectedAircraftId
+            return (
+              <div
+                key={ac.icao24}
+                onClick={() => onSelectAircraft(isSelected ? null : ac.icao24)}
+                style={{
+                  padding: '5px 12px',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  borderLeft: `2px solid ${color}`,
+                  background: isSelected ? 'var(--bg-overlay)' : 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{
+                    fontSize: 11, color: 'var(--text-primary)', fontWeight: 600,
+                    fontFamily: "'Share Tech Mono', monospace",
+                    maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {ac.callsign}
+                  </span>
+                  <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
+                    {TYPE_LABELS[ac.type] ?? '???'}
+                  </span>
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  fontSize: 9, color: 'var(--text-muted)', marginTop: 2,
                 }}>
-                  {base.party}
-                </span>
+                  <span>{ac.altitude > 0 ? `${Math.round(ac.altitude / 100) * 100}ft` : 'GND'}</span>
+                  <span>{ac.speed > 0 ? `${Math.round(ac.speed)}kt` : '—'}</span>
+                </div>
               </div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
-                {base.type.toUpperCase()} · {base.country}
+            )
+          }) : (
+            <>
+              <div style={{ padding: '6px 12px', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+                AWAITING TRACKS...
               </div>
+              {conflict.overlays.bases.map(base => {
+                const color = PARTY_COLORS[base.party] ?? '#94a3b8'
+                return (
+                  <div key={base.id} style={{
+                    padding: '6px 12px',
+                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    borderLeft: `2px solid ${color}`,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600 }}>{base.name}</span>
+                      <span style={{ fontSize: 9, color, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{base.party}</span>
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {base.type.toUpperCase()} · {base.country}
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )
+        ) : (
+          vessels.length > 0 ? vessels.map(v => {
+            const color      = v.ais_dark ? '#475569' : (PARTY_COLORS[v.side] ?? '#94a3b8')
+            const isSelected = v.mmsi === selectedVesselId
+            return (
+              <div
+                key={v.mmsi}
+                onClick={() => onSelectVessel(isSelected ? null : v.mmsi)}
+                style={{
+                  padding: '5px 12px',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  borderLeft: `2px solid ${v.ais_dark ? '#475569' : color}`,
+                  background: isSelected ? 'var(--bg-overlay)' : 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{
+                    fontSize: 11, color: v.ais_dark ? 'var(--text-muted)' : 'var(--text-primary)', fontWeight: 600,
+                    fontFamily: "'Share Tech Mono', monospace",
+                    maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {v.name}
+                  </span>
+                  <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
+                    {VESSEL_TYPE_LABELS[v.type] ?? '???'}
+                  </span>
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  fontSize: 9, color: 'var(--text-muted)', marginTop: 2,
+                }}>
+                  <span style={{ color: v.ais_dark ? '#ef4444' : 'var(--text-muted)' }}>
+                    {v.ais_dark ? 'AIS DARK' : `${v.speed.toFixed(1)}kt`}
+                  </span>
+                  <span>{v.side}</span>
+                </div>
+              </div>
+            )
+          }) : (
+            <div style={{ padding: '12px', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+              // NO VESSELS
             </div>
           )
-        })}
-      </div>
-
-      {/* Phase 0 placeholder for track list */}
-      <div style={{
-        padding:    '8px 12px',
-        borderTop:  '1px solid var(--border)',
-        fontSize:    9,
-        color:      'var(--text-muted)',
-        letterSpacing: '0.08em',
-        flexShrink:  0,
-      }}>
-        // AIR TRACKS — PHASE 1
+        )}
       </div>
     </div>
   )
 }
 
-// ── Right sidebar: posture + nuclear watch ─────────────────
+// ── Aircraft detail popup ─────────────────────────────────────────────────────
 
-function PosturePanel({ conflict }: { conflict: ConflictConfig }) {
+function AircraftPopup({ ac, onClose }: { ac: Aircraft; onClose: () => void }) {
+  const color = PARTY_COLORS[ac.side] ?? '#94a3b8'
+  return (
+    <div style={{
+      position: 'absolute', top: 60, right: 16, zIndex: 20,
+      background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)',
+      borderRadius: 4, padding: 12, minWidth: 240,
+      fontFamily: "'Share Tech Mono', monospace",
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 9, color, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          ✈ {ac.side} · {TYPE_LABELS[ac.type] ?? '???'}
+        </span>
+        <button
+          onClick={onClose}
+          style={{
+            background: 'none', border: 'none', color: 'var(--text-muted)',
+            cursor: 'pointer', fontSize: 12, lineHeight: 1,
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+        {ac.callsign}
+      </div>
+
+      {[
+        { label: 'ICAO24',   value: ac.icao24.toUpperCase() },
+        { label: 'ALT',      value: ac.altitude > 0 ? `${ac.altitude.toLocaleString()} ft` : 'GND' },
+        { label: 'SPEED',    value: ac.speed > 0 ? `${Math.round(ac.speed)} kt` : '—' },
+        { label: 'HEADING',  value: ac.heading > 0 ? `${Math.round(ac.heading)}°` : '—' },
+        { label: 'POSITION', value: `${ac.lat.toFixed(4)}°N ${ac.lon.toFixed(4)}°E` },
+        { label: 'MILITARY', value: ac.mil ? 'YES' : 'UNCONFIRMED' },
+      ].map(({ label, value }) => (
+        <div key={label} style={{
+          display: 'flex', justifyContent: 'space-between',
+          padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+        }}>
+          <span style={{ fontSize: 9, color: 'var(--text-secondary)', letterSpacing: '0.08em' }}>{label}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-primary)' }}>{value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Vessel detail popup ───────────────────────────────────────────────────────
+
+function VesselPopup({ v, onClose }: { v: Vessel; onClose: () => void }) {
+  const color = v.ais_dark ? '#94a3b8' : (PARTY_COLORS[v.side] ?? '#94a3b8')
+  return (
+    <div style={{
+      position: 'absolute', top: 60, right: 16, zIndex: 20,
+      background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)',
+      borderRadius: 4, padding: 12, minWidth: 240,
+      fontFamily: "'Share Tech Mono', monospace",
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 9, color, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          ⚓ {v.side} · {VESSEL_TYPE_LABELS[v.type] ?? '???'}
+          {v.ais_dark && <span style={{ color: '#ef4444', marginLeft: 6 }}>◉ AIS DARK</span>}
+          {v.sanctioned && <span style={{ color: '#f97316', marginLeft: 6 }}>⚠ SANCTIONED</span>}
+        </span>
+        <button
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}
+        >
+          ✕
+        </button>
+      </div>
+
+      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+        {v.name}
+      </div>
+
+      {[
+        { label: 'MMSI',     value: v.mmsi },
+        { label: 'SPEED',    value: v.speed > 0 ? `${v.speed.toFixed(1)} kt` : '— kt' },
+        { label: 'HEADING',  value: v.heading > 0 ? `${Math.round(v.heading)}°` : '—' },
+        { label: 'POSITION', value: `${v.lat.toFixed(4)}°N ${v.lon.toFixed(4)}°E` },
+        { label: 'STATUS',   value: v.ais_dark ? 'AIS DARK' : 'TRANSMITTING' },
+      ].map(({ label, value }) => (
+        <div key={label} style={{
+          display: 'flex', justifyContent: 'space-between',
+          padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+        }}>
+          <span style={{ fontSize: 9, color: 'var(--text-secondary)', letterSpacing: '0.08em' }}>{label}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-primary)' }}>{value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Right sidebar: posture + nuclear watch ────────────────────────────────────
+
+function PosturePanel({
+  conflict, aircraft, vessels, incidents, incidentStatus, onFlyTo,
+}: {
+  conflict: ConflictConfig
+  aircraft: Aircraft[]
+  vessels: Vessel[]
+  incidents: Incident[]
+  incidentStatus: 'connecting' | 'connected' | 'error'
+  onFlyTo: (lat: number, lon: number) => void
+}) {
   const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
   const hasNuclear = (conflict.overlays.nuclearSites?.length ?? 0) > 0
 
+  const usCnt    = aircraft.filter(a => a.side === 'US').length
+  const irCnt    = aircraft.filter(a => a.side === 'IR').length
+  const ilCnt    = aircraft.filter(a => a.side === 'IL').length
+  const usVesCnt = vessels.filter(v => v.side === 'US').length
+  const irVesCnt = vessels.filter(v => v.side === 'IR').length
+  const darkCnt  = vessels.filter(v => v.ais_dark).length
+
   return (
     <div style={{
-      width:          280,
-      flexShrink:     0,
-      background:    'var(--bg-surface)',
-      borderLeft:    '1px solid var(--border)',
-      display:        'flex',
-      flexDirection:  'column',
-      overflow:       'hidden',
+      width: 280, flexShrink: 0,
+      background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       {/* Theater posture */}
-      <div style={{
-        padding:      '8px 12px',
-        borderBottom: '1px solid var(--border)',
-        flexShrink:    0,
-      }}>
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{
+          fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
+          textTransform: 'uppercase', marginBottom: 8,
+        }}>
           Theater Posture
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Intensity',  value: conflict.intensity.toUpperCase(), color: intensityColor },
-            { label: 'Status',     value: conflict.status.toUpperCase(),    color: '#22c55e' },
-            { label: 'Parties',    value: conflict.parties.length,          color: 'var(--text-primary)' },
-            { label: 'Theaters',   value: conflict.map.theaters.length,     color: 'var(--text-primary)' },
+            { label: 'Intensity', value: conflict.intensity.toUpperCase(), color: intensityColor },
+            { label: 'Status',    value: conflict.status.toUpperCase(),    color: '#22c55e' },
+            { label: 'AC Total',  value: aircraft.length || '—', color: aircraft.length > 0 ? '#00b0ff' : 'var(--text-muted)' },
+            { label: 'Vessels',   value: vessels.length  || '—', color: vessels.length  > 0 ? '#22c55e' : 'var(--text-muted)' },
           ].map(({ label, value, color }) => (
             <div key={label}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+              <div style={{
+                fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase',
+                letterSpacing: '0.08em', marginBottom: 2,
+              }}>
                 {label}
               </div>
               <div style={{
-                fontFamily:    "'Orbitron', monospace",
-                fontSize:       13,
-                fontWeight:     700,
-                color,
-                letterSpacing: '0.04em',
+                fontFamily: "'Orbitron', monospace", fontSize: 13, fontWeight: 700,
+                color, letterSpacing: '0.04em',
               }}>
                 {value}
               </div>
@@ -301,21 +477,81 @@ function PosturePanel({ conflict }: { conflict: ConflictConfig }) {
         </div>
       </div>
 
+      {/* Aircraft by side */}
+      {aircraft.length > 0 && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
+            textTransform: 'uppercase', marginBottom: 6,
+          }}>
+            Aircraft by Side
+          </div>
+          {[
+            { side: 'US', count: usCnt, color: '#00b0ff' },
+            { side: 'IR', count: irCnt, color: '#ef4444' },
+            { side: 'IL', count: ilCnt, color: '#22c55e' },
+            { side: 'ALLIED', count: aircraft.filter(a => a.side === 'ALLIED').length, color: '#f59e0b' },
+            { side: 'UNKNOWN', count: aircraft.filter(a => a.side === 'UNKNOWN').length, color: '#94a3b8' },
+          ].filter(r => r.count > 0).map(({ side, count, color }) => (
+            <div key={side} style={{
+              display: 'flex', justifyContent: 'space-between',
+              padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}>
+              <span style={{ fontSize: 10, color }}>{side}</span>
+              <span style={{
+                fontFamily: "'Orbitron', monospace", fontSize: 11, fontWeight: 700, color,
+              }}>
+                {count}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Vessels by side */}
+      {vessels.length > 0 && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
+            textTransform: 'uppercase', marginBottom: 6,
+          }}>
+            Naval Tracks
+          </div>
+          {[
+            { label: 'US Vessels',  count: usVesCnt, color: '#00b0ff' },
+            { label: 'IR Vessels',  count: irVesCnt, color: '#ef4444' },
+            { label: 'AIS Dark',    count: darkCnt,  color: '#f97316' },
+          ].filter(r => r.count > 0).map(({ label, count, color }) => (
+            <div key={label} style={{
+              display: 'flex', justifyContent: 'space-between',
+              padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}>
+              <span style={{ fontSize: 10, color }}>{label}</span>
+              <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 11, fontWeight: 700, color }}>
+                {count}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Hormuz widget (us-iran only) */}
+      {conflict.slug === 'us-iran' && vessels.length > 0 && (
+        <HormuzWidget vessels={vessels} />
+      )}
+
       {/* Sub-theaters */}
-      <div style={{
-        padding:      '8px 12px',
-        borderBottom: '1px solid var(--border)',
-        flexShrink:    0,
-      }}>
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{
+          fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
+          textTransform: 'uppercase', marginBottom: 6,
+        }}>
           Sub-Theaters
         </div>
         {conflict.map.theaters.map(t => (
           <div key={t.id} style={{
-            display:        'flex',
-            justifyContent: 'space-between',
-            padding:        '3px 0',
-            borderBottom:   '1px solid rgba(255,255,255,0.04)',
+            display: 'flex', justifyContent: 'space-between',
+            padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
           }}>
             <span style={{ fontSize: 10, color: 'var(--text-primary)' }}>{t.name}</span>
           </div>
@@ -323,12 +559,11 @@ function PosturePanel({ conflict }: { conflict: ConflictConfig }) {
       </div>
 
       {/* Parties */}
-      <div style={{
-        padding:      '8px 12px',
-        borderBottom: '1px solid var(--border)',
-        flexShrink:    0,
-      }}>
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{
+          fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
+          textTransform: 'uppercase', marginBottom: 6,
+        }}>
           Parties
         </div>
         {conflict.parties.map(p => (
@@ -342,45 +577,30 @@ function PosturePanel({ conflict }: { conflict: ConflictConfig }) {
 
       {/* Nuclear watch (us-iran only) */}
       {hasNuclear && (
-        <div style={{
-          padding:      '8px 12px',
-          borderBottom: '1px solid var(--border)',
-          flexShrink:    0,
-        }}>
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{
-            fontSize:      10,
-            color:        '#a855f7',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            marginBottom:   6,
+            fontSize: 10, color: '#a855f7', letterSpacing: '0.12em',
+            textTransform: 'uppercase', marginBottom: 6,
           }}>
             ◈ Nuclear Watch
           </div>
           {(conflict.overlays.nuclearSites ?? []).map(site => {
             const statusColors: Record<string, string> = {
-              active:      '#ef4444',
-              suspected:   '#f97316',
-              modified:    '#eab308',
-              operational: '#22c55e',
-              shutdown:    '#94a3b8',
+              active: '#ef4444', suspected: '#f97316', modified: '#eab308',
+              operational: '#22c55e', shutdown: '#94a3b8',
             }
             const color = statusColors[site.status] ?? '#94a3b8'
             return (
               <div key={site.id} style={{
-                display:        'flex',
-                justifyContent: 'space-between',
-                alignItems:     'center',
-                padding:        '3px 0',
-                borderBottom:   '1px solid rgba(255,255,255,0.04)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
               }}>
                 <span style={{ fontSize: 10, color: 'var(--text-primary)' }}>{site.name}</span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 9, color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                     {site.status}
                   </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                    {site.enrichment}
-                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{site.enrichment}</div>
                 </div>
               </div>
             )
@@ -388,22 +608,13 @@ function PosturePanel({ conflict }: { conflict: ConflictConfig }) {
         </div>
       )}
 
-      {/* Incident feed placeholder */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-        <span style={{
-          fontFamily:    "'Share Tech Mono', monospace",
-          fontSize:       10,
-          color:         'var(--text-muted)',
-          letterSpacing: '0.08em',
-        }}>
-          // INCIDENT FEED — PHASE 3
-        </span>
-      </div>
+      {/* Incident feed */}
+      <IncidentFeed incidents={incidents} onFlyTo={onFlyTo} status={incidentStatus} />
     </div>
   )
 }
 
-// ── Main theater page ──────────────────────────────────────
+// ── Main theater page ─────────────────────────────────────────────────────────
 
 export default function TheaterPage() {
   const params = useParams<{ slug: string }>()
@@ -412,11 +623,25 @@ export default function TheaterPage() {
   const conflict = getConflict(slug)
 
   const [layers, setLayers] = useState<LayerState>({
+    aircraft:    true,
+    vessels:     true,
+    incidents:   true,
+    heatmap:     false,
     bases:       true,
     nuclear:     true,
     sam:         true,
     chokepoints: true,
   })
+  const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null)
+  const [selectedVesselId,   setSelectedVesselId]   = useState<string | null>(null)
+  const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number } | null>(null)
+
+  const { aircraft }                     = useAircraftWebSocket(slug)
+  const { vessels }                      = useVesselWebSocket(slug)
+  const { incidents, status: incStatus } = useIncidentSSE(slug)
+
+  const selectedAc = selectedAircraftId ? aircraft.find(a => a.icao24 === selectedAircraftId) ?? null : null
+  const selectedVs = selectedVesselId   ? vessels.find(v => v.mmsi === selectedVesselId)      ?? null : null
 
   function handleLayerToggle(key: keyof LayerState, value: boolean) {
     setLayers(prev => ({ ...prev, [key]: value }))
@@ -425,14 +650,10 @@ export default function TheaterPage() {
   if (!conflict) {
     return (
       <div style={{
-        display:        'flex',
-        height:         'calc(100vh - 25px)',
-        alignItems:     'center',
-        justifyContent: 'center',
-        flexDirection:  'column',
-        gap:             16,
-        background:    'var(--bg-base)',
-        fontFamily:    "'Share Tech Mono', monospace",
+        display: 'flex', height: 'calc(100vh - 25px)',
+        alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column', gap: 16,
+        background: 'var(--bg-base)', fontFamily: "'Share Tech Mono', monospace",
       }}>
         <div style={{ fontSize: 11, color: '#ef4444', letterSpacing: '0.15em' }}>
           // 404 — THEATER NOT FOUND
@@ -451,55 +672,39 @@ export default function TheaterPage() {
 
   return (
     <div style={{
-      display:       'flex',
-      flexDirection: 'column',
-      height:        'calc(100vh - 25px)',
-      background:   'var(--bg-base)',
-      overflow:      'hidden',
+      display: 'flex', flexDirection: 'column',
+      height: 'calc(100vh - 25px)',
+      background: 'var(--bg-base)', overflow: 'hidden',
     }}>
-      {/* ── Theater header ─────────────────────────────── */}
+      {/* ── Theater header ──────────────────────────────────── */}
       <div style={{
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'space-between',
-        padding:        '0 16px',
-        height:          52,
-        background:     'var(--bg-surface)',
-        borderBottom:   '1px solid var(--border)',
-        flexShrink:      0,
-        gap:             16,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 16px', height: 52,
+        background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
+        flexShrink: 0, gap: 16,
       }}>
         {/* Left: back + conflict name */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
           <a
             href="/conflicts"
             style={{
-              fontSize:      10,
-              color:        'var(--text-muted)',
-              fontFamily:   "'Share Tech Mono', monospace",
-              letterSpacing: '0.1em',
-              textDecoration: 'none',
-              whiteSpace:    'nowrap',
+              fontSize: 10, color: 'var(--text-muted)',
+              fontFamily: "'Share Tech Mono', monospace",
+              letterSpacing: '0.1em', textDecoration: 'none', whiteSpace: 'nowrap',
             }}
           >
             ← CONFLICTS
           </a>
           <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
           <div style={{
-            fontFamily:    "'Orbitron', monospace",
-            fontSize:       18,
-            fontWeight:     700,
-            color:         'var(--text-primary)',
-            letterSpacing: '0.06em',
-            whiteSpace:    'nowrap',
+            fontFamily: "'Orbitron', monospace", fontSize: 18, fontWeight: 700,
+            color: 'var(--text-primary)', letterSpacing: '0.06em', whiteSpace: 'nowrap',
           }}>
             {conflict.name}
           </div>
           <span style={{
-            fontSize:      10,
-            color:        'var(--text-secondary)',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontSize: 10, color: 'var(--text-secondary)',
+            letterSpacing: '0.1em', textTransform: 'uppercase',
           }}>
             {conflict.shortName}
           </span>
@@ -515,43 +720,59 @@ export default function TheaterPage() {
           ))}
         </div>
 
-        {/* Right: intensity + clock + live */}
+        {/* Right: counts + intensity + clock + live */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+          {aircraft.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>AC</span>
+              <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 14, fontWeight: 700, color: '#00b0ff' }}>
+                {aircraft.length}
+              </span>
+            </div>
+          )}
+          {vessels.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>VS</span>
+              <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 14, fontWeight: 700, color: '#22c55e' }}>
+                {vessels.length}
+              </span>
+            </div>
+          )}
+          {incidents.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>EVT</span>
+              <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 14, fontWeight: 700, color: '#eab308' }}>
+                {incidents.length}
+              </span>
+            </div>
+          )}
+
           <span style={{
-            padding:       '3px 8px',
-            background:    `${intensityColor}20`,
-            border:        `1px solid ${intensityColor}55`,
-            borderRadius:   2,
-            fontSize:       10,
-            color:          intensityColor,
-            fontFamily:    "'Share Tech Mono', monospace",
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            animation:      conflict.intensity === 'critical' ? 'pulse-opacity 1.5s ease-in-out infinite' : undefined,
+            padding: '3px 8px',
+            background: `${intensityColor}20`,
+            border: `1px solid ${intensityColor}55`,
+            borderRadius: 2,
+            fontSize: 10, color: intensityColor,
+            fontFamily: "'Share Tech Mono', monospace",
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            animation: conflict.intensity === 'critical' ? 'pulse-opacity 1.5s ease-in-out infinite' : undefined,
           }}>
             {conflict.intensity.toUpperCase()}
           </span>
 
           <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-
           <ZuluClock />
-
           <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{
-              width:        6,
-              height:       6,
-              borderRadius: '50%',
-              background:   '#22c55e',
-              display:      'inline-block',
-              animation:    'pulse-opacity 2s ease-in-out infinite',
+              width: 6, height: 6, borderRadius: '50%',
+              background: '#22c55e', display: 'inline-block',
+              animation: 'pulse-opacity 2s ease-in-out infinite',
             }} />
             <span style={{
-              fontSize:      10,
-              color:        '#22c55e',
-              fontFamily:   "'Share Tech Mono', monospace",
-              letterSpacing: '0.12em',
+              fontSize: 10, color: '#22c55e',
+              fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.12em',
             }}>
               LIVE
             </span>
@@ -559,24 +780,51 @@ export default function TheaterPage() {
         </div>
       </div>
 
-      {/* ── Main content ───────────────────────────────── */}
+      {/* ── Main content ────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <BasesPanel conflict={conflict} />
+        <TrackList
+          conflict={conflict}
+          aircraft={aircraft}
+          vessels={vessels}
+          selectedAircraftId={selectedAircraftId}
+          selectedVesselId={selectedVesselId}
+          onSelectAircraft={setSelectedAircraftId}
+          onSelectVessel={setSelectedVesselId}
+        />
 
         {/* Map area */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          <TheaterMap conflict={conflict} layers={layers} />
-          <LayerControl
+          <TheaterMap
             conflict={conflict}
             layers={layers}
-            onChange={handleLayerToggle}
+            aircraft={aircraft}
+            vessels={vessels}
+            incidents={incidents}
+            selectedId={selectedAircraftId}
+            onPickAircraft={ac => setSelectedAircraftId(ac?.icao24 ?? null)}
+            onPickVessel={v => setSelectedVesselId(v?.mmsi ?? null)}
+            flyTo={flyTo}
           />
+          <LayerControl conflict={conflict} layers={layers} onChange={handleLayerToggle} />
+          {selectedAc && (
+            <AircraftPopup ac={selectedAc} onClose={() => setSelectedAircraftId(null)} />
+          )}
+          {selectedVs && !selectedAc && (
+            <VesselPopup v={selectedVs} onClose={() => setSelectedVesselId(null)} />
+          )}
         </div>
 
-        <PosturePanel conflict={conflict} />
+        <PosturePanel
+          conflict={conflict}
+          aircraft={aircraft}
+          vessels={vessels}
+          incidents={incidents}
+          incidentStatus={incStatus}
+          onFlyTo={(lat, lon) => setFlyTo({ lat, lon })}
+        />
       </div>
 
-      {/* ── Status bar ─────────────────────────────────── */}
+      {/* ── Status bar ──────────────────────────────────────── */}
       <DataFreshness />
     </div>
   )

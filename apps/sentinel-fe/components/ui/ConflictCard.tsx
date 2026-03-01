@@ -26,12 +26,13 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 interface Props {
-  conflict: ConflictConfig
-  hovered?: boolean
-  onHover?: (slug: string | null) => void
+  conflict:      ConflictConfig
+  hovered?:      boolean
+  onHover?:      (slug: string | null) => void
+  aircraftCount?: number | undefined
 }
 
-export default function ConflictCard({ conflict, hovered, onHover }: Props) {
+export default function ConflictCard({ conflict, hovered, onHover, aircraftCount }: Props) {
   const [isHovered, setIsHovered] = useState(false)
   const router = useRouter()
 
@@ -130,29 +131,36 @@ export default function ConflictCard({ conflict, hovered, onHover }: Props) {
           ))}
         </div>
 
-        {/* Key metrics — Phase 0: show dashes */}
+        {/* Key metrics */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {conflict.card.keyMetrics.slice(0, 3).map(metric => (
-            <div key={metric}>
-              <div style={{
-                fontSize:      9,
-                color:        'var(--text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                marginBottom:   3,
-              }}>
-                {metric}
+          {conflict.card.keyMetrics.slice(0, 3).map((metric, i) => {
+            // First metric is always "Aircraft tracked" — show live count if available
+            const value = (i === 0 && aircraftCount !== undefined)
+              ? String(aircraftCount)
+              : '—'
+            const isLive = i === 0 && aircraftCount !== undefined && aircraftCount > 0
+            return (
+              <div key={metric}>
+                <div style={{
+                  fontSize:      9,
+                  color:        'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  marginBottom:   3,
+                }}>
+                  {metric}
+                </div>
+                <div style={{
+                  fontFamily:    "'Orbitron', monospace",
+                  fontSize:       16,
+                  fontWeight:     700,
+                  color:          isLive ? '#00b0ff' : 'var(--text-primary)',
+                }}>
+                  {value}
+                </div>
               </div>
-              <div style={{
-                fontFamily:    "'Orbitron', monospace",
-                fontSize:       16,
-                fontWeight:     700,
-                color:         'var(--text-primary)',
-              }}>
-                —
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 

@@ -3,7 +3,7 @@
 Multi-conflict geospatial intelligence platform. Tracks military aircraft, naval vessels,
 and OSINT incidents across active conflict theaters in real time.
 
-**Current status:** Phase 0 🔨
+**Current status:** Phase 3 ✅ (Phase 4 upcoming)
 
 ---
 
@@ -618,7 +618,8 @@ OPENSKY_PASSWORD=
 AISSTREAM_API_KEY=     # aisstream.io — free, register at site
 
 # ─── Conflict data ─────────────────────────────────────────────────────────
-ACLED_ACCESS_TOKEN=    # acleddata.com — free non-commercial
+ACLED_EMAIL=           # acleddata.com — account email (OAuth2 since 2026)
+ACLED_PASSWORD=        # acleddata.com — account password
 
 # ─── Economic ──────────────────────────────────────────────────────────────
 EIA_API_KEY=           # eia.gov/opendata — free
@@ -637,7 +638,7 @@ NODE_ENV=development
 **Minimum required for each phase:**
 - Phase 0: none (static data only)
 - Phase 1+: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
-- Phase 3+: `GROQ_API_KEY`, `ACLED_ACCESS_TOKEN`
+- Phase 3+: `GROQ_API_KEY`, `ACLED_EMAIL`, `ACLED_PASSWORD`
 - Phase 5+: `ANTHROPIC_API_KEY`
 - Phase 6+: `EIA_API_KEY`
 
@@ -690,7 +691,7 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 ---
 
-### Phase 1 — Live Aircraft Tracking ⏳ UPCOMING
+### Phase 1 — Live Aircraft Tracking ✅ COMPLETE
 
 **Goal:** Real military aircraft moving on both conflict maps simultaneously.
 
@@ -713,7 +714,7 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 ---
 
-### Phase 2 — Naval Tracking ⏳ UPCOMING
+### Phase 2 — Naval Tracking ✅ COMPLETE
 
 **Goal:** Vessels on both maps. AIS-dark detection. Strait of Hormuz widget on us-iran.
 
@@ -733,7 +734,7 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 ---
 
-### Phase 3 — Incident Feed & OSINT ⏳ UPCOMING
+### Phase 3 — Incident Feed & OSINT ✅ COMPLETE
 
 **Goal:** Live events on both maps. Telegram → AI pipeline. Incident feed panel.
 
