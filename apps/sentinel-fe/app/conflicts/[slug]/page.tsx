@@ -354,12 +354,14 @@ const SURGE_COLORS: Record<string, string> = {
 // ── Right sidebar: posture + nuclear watch ────────────────────────────────────
 
 function PosturePanel({
-  conflict, aircraft, vessels, economic,
+  conflict, aircraft, vessels, economic, isMobile, visible,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
   vessels: Vessel[]
   economic: ReturnType<typeof useEconomicData>
+  isMobile: boolean
+  visible: boolean
 }) {
   const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
   const hasNuclear = (conflict.overlays.nuclearSites?.length ?? 0) > 0
@@ -373,9 +375,12 @@ function PosturePanel({
 
   return (
     <div style={{
-      width: 260, flexShrink: 0, maxWidth: '100%',
+      width: isMobile ? '100%' : 260,
+      flex: isMobile ? '1 1 0' : undefined,
+      flexShrink: 0,
+      display: visible ? 'flex' : 'none',
+      flexDirection: 'column', overflowY: 'auto',
       background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', overflowY: 'auto',
     }}>
       {/* Theater posture */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -562,6 +567,7 @@ function LeftIntelPanel({
   selectedAircraftId, selectedVesselId, onSelectAircraft, onSelectVessel, onFlyTo,
   sitrep, sitrepLoading, sitrepPending,
   convergenceAlerts, surgeAlerts, strikePackage, slug,
+  isMobile, visible,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
@@ -580,12 +586,17 @@ function LeftIntelPanel({
   surgeAlerts: SurgeAlert[]
   strikePackage: boolean
   slug: string
+  isMobile: boolean
+  visible: boolean
 }) {
   return (
     <div style={{
-      width: 300, flexShrink: 0,
+      width: isMobile ? '100%' : 300,
+      flex: isMobile ? '1 1 0' : undefined,
+      flexShrink: 0,
+      display: visible ? 'flex' : 'none',
+      flexDirection: 'column', overflow: 'hidden',
       background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       {/* Track list — capped height so intel panels always get space */}
       <div style={{
@@ -904,35 +915,29 @@ export default function TheaterPage() {
       {/* ── Main content ────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Left intel panel — hidden on mobile unless intel tab active */}
-        <div style={{
-          display: (!isMobile || mobileTab === 'intel') ? 'flex' : 'none',
-          width: isMobile ? '100%' : undefined,
-          flex: isMobile ? 1 : undefined,
-          flexDirection: 'column', overflow: 'hidden',
-        }}>
-          <LeftIntelPanel
-            conflict={conflict}
-            aircraft={aircraft}
-            vessels={vessels}
-            incidents={incidents}
-            incidentStatus={incStatus}
-            selectedAircraftId={selectedAircraftId}
-            selectedVesselId={selectedVesselId}
-            onSelectAircraft={setSelectedAircraftId}
-            onSelectVessel={setSelectedVesselId}
-            onFlyTo={(lat, lon) => { setFlyTo({ lat, lon }); if (isMobile) setMobileTab('map') }}
-            sitrep={sitrep}
-            sitrepLoading={sitrepLoading}
-            sitrepPending={sitrepPending}
-            convergenceAlerts={convergenceAlerts}
-            surgeAlerts={surgeAlerts}
-            strikePackage={strikePackage}
-            slug={slug}
-          />
-        </div>
+        <LeftIntelPanel
+          conflict={conflict}
+          aircraft={aircraft}
+          vessels={vessels}
+          incidents={incidents}
+          incidentStatus={incStatus}
+          selectedAircraftId={selectedAircraftId}
+          selectedVesselId={selectedVesselId}
+          onSelectAircraft={setSelectedAircraftId}
+          onSelectVessel={setSelectedVesselId}
+          onFlyTo={(lat, lon) => { setFlyTo({ lat, lon }); if (isMobile) setMobileTab('map') }}
+          sitrep={sitrep}
+          sitrepLoading={sitrepLoading}
+          sitrepPending={sitrepPending}
+          convergenceAlerts={convergenceAlerts}
+          surgeAlerts={surgeAlerts}
+          strikePackage={strikePackage}
+          slug={slug}
+          isMobile={isMobile}
+          visible={!isMobile || mobileTab === 'intel'}
+        />
 
-        {/* Map area — hidden on mobile unless map tab active */}
+        {/* Map area */}
         <div style={{
           display: (!isMobile || mobileTab === 'map') ? 'flex' : 'none',
           flex: 1, position: 'relative', overflow: 'hidden',
@@ -958,20 +963,14 @@ export default function TheaterPage() {
           )}
         </div>
 
-        {/* Right posture panel — hidden on mobile unless posture tab active */}
-        <div style={{
-          display: (!isMobile || mobileTab === 'posture') ? 'flex' : 'none',
-          width: isMobile ? '100%' : undefined,
-          flex: isMobile ? 1 : undefined,
-          flexDirection: 'column', overflow: 'hidden',
-        }}>
-          <PosturePanel
-            conflict={conflict}
-            aircraft={aircraft}
-            vessels={vessels}
-            economic={economic}
-          />
-        </div>
+        <PosturePanel
+          conflict={conflict}
+          aircraft={aircraft}
+          vessels={vessels}
+          economic={economic}
+          isMobile={isMobile}
+          visible={!isMobile || mobileTab === 'posture'}
+        />
       </div>
 
       {/* ── Mobile bottom tab bar ────────────────────────────── */}
