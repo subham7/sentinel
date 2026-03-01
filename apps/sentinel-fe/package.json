@@ -16,6 +16,7 @@
     "@deck.gl/mapbox": "^9.0.0",
     "@sentinel/shared": "*",
     "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-virtual": "^3.13.19",
     "@turf/turf": "^7.0.0",
     "@vercel/analytics": "^1.6.1",
     "deck.gl": "^9.0.0",

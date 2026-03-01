@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Vessel } from '@sentinel/shared'
+import { useVisibility } from './useVisibility'
+import { useInactivity } from './useInactivity'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const WS_BASE  = API_BASE.replace(/^https?/, m => (m === 'https' ? 'wss' : 'ws'))
@@ -23,6 +25,9 @@ export function useVesselWebSocket(slug: string): UseVesselWSResult {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retries  = useRef(0)
   const dead     = useRef(false)
+
+  const visible  = useVisibility()
+  const inactive = useInactivity()
 
   const connect = useCallback(() => {
     if (dead.current) return
@@ -60,6 +65,7 @@ export function useVesselWebSocket(slug: string): UseVesselWSResult {
     }
   }, [slug])
 
+  // Mount / unmount
   useEffect(() => {
     dead.current = false
     connect()
@@ -69,6 +75,19 @@ export function useVesselWebSocket(slug: string): UseVesselWSResult {
       wsRef.current?.close()
     }
   }, [connect])
+
+  // Pause when hidden or inactive; resume immediately when active again
+  useEffect(() => {
+    if (!visible || inactive) {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      wsRef.current?.close()
+      wsRef.current = null
+      setStatus('stale')
+    } else {
+      retries.current = 0
+      connect()
+    }
+  }, [visible, inactive, connect])
 
   return { vessels, status, darkCount }
 }

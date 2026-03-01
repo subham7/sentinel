@@ -11,10 +11,11 @@ import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
 import OilPriceWidget from '@/components/panels/OilPriceWidget'
 import RialWidget from '@/components/panels/RialWidget'
-import IncidentFeed from '@/components/panels/IncidentFeed'
+import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
 import LayerControl from '@/components/map/LayerControl'
+import CommandPalette from '@/components/CommandPalette'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
 import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
 import { useIncidentSSE } from '@/hooks/useIncidentSSE'
@@ -567,7 +568,7 @@ function LeftIntelPanel({
   selectedAircraftId, selectedVesselId, onSelectAircraft, onSelectVessel, onFlyTo,
   sitrep, sitrepLoading, sitrepPending,
   convergenceAlerts, surgeAlerts, strikePackage, slug,
-  isMobile, visible,
+  isMobile, visible, feedSize, onFeedSizeChange,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
@@ -588,7 +589,12 @@ function LeftIntelPanel({
   slug: string
   isMobile: boolean
   visible: boolean
+  feedSize: FeedSize
+  onFeedSizeChange: (s: FeedSize) => void
 }) {
+  // Feed flex dimensions per size
+  const feedFlex = feedSize === 'expanded' ? '1 1 0' : feedSize === 'normal' ? '0 0 300px' : '0 0 40px'
+
   return (
     <div style={{
       width: isMobile ? '100%' : 300,
@@ -615,83 +621,95 @@ function LeftIntelPanel({
         />
       </div>
 
-      {/* Intelligence sections: scrollable, collapse to give incident feed space */}
-      <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
+      {/* Intelligence sections: hidden when feed is expanded */}
+      {feedSize !== 'expanded' && (
+        <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
 
-        {/* Convergence alerts */}
-        {convergenceAlerts.length > 0 && (
-          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{
-              fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
-              textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              ◉ Convergence ({convergenceAlerts.length})
-            </div>
-            {convergenceAlerts.slice(0, 3).map(alert => (
-              <div key={alert.cellId} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
-              }}>
-                <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
-                  {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
-                </span>
-                <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
-                  {alert.signals.map(s => s.toUpperCase().slice(0, 2)).join('+')} ×{alert.entityCount}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Surge / strike package */}
-        {(surgeAlerts.length > 0 || strikePackage) && (
-          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-            <div style={{
-              fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
-              textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              ⚠ Surge Detection
-            </div>
-            {strikePackage && (
+          {/* Convergence alerts */}
+          {convergenceAlerts.length > 0 && (
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
               <div style={{
-                padding: '4px 8px', marginBottom: 4,
-                background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
-                fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
-                animation: 'pulse-opacity 1.5s ease-in-out infinite',
+                fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
+                textTransform: 'uppercase', marginBottom: 6,
               }}>
-                STRIKE PACKAGE DETECTED
+                ◉ Convergence ({convergenceAlerts.length})
               </div>
-            )}
-            {surgeAlerts.map(alert => {
-              const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
-              return (
-                <div key={alert.metric} style={{
+              {convergenceAlerts.slice(0, 3).map(alert => (
+                <div key={alert.cellId} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
                 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                    {alert.metric.toUpperCase()} SURGE
+                  <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
+                    {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
                   </span>
-                  <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
-                    {alert.current} (μ={alert.mean}, z={alert.zScore})
+                  <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
+                    {alert.signals.map(s => s.toUpperCase().slice(0, 2)).join('+')} ×{alert.entityCount}
                   </span>
                 </div>
-              )
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* SITREP */}
-        <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
+          {/* Surge / strike package */}
+          {(surgeAlerts.length > 0 || strikePackage) && (
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{
+                fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
+                textTransform: 'uppercase', marginBottom: 6,
+              }}>
+                ⚠ Surge Detection
+              </div>
+              {strikePackage && (
+                <div style={{
+                  padding: '4px 8px', marginBottom: 4,
+                  background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
+                  fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
+                  animation: 'pulse-opacity 1.5s ease-in-out infinite',
+                }}>
+                  STRIKE PACKAGE DETECTED
+                </div>
+              )}
+              {surgeAlerts.map(alert => {
+                const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
+                return (
+                  <div key={alert.metric} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                      {alert.metric.toUpperCase()} SURGE
+                    </span>
+                    <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
+                      {alert.current} (μ={alert.mean}, z={alert.zScore})
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-        {/* Analyst Chat */}
-        <AnalystChat slug={slug} />
+          {/* SITREP */}
+          <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
 
-      </div>
+          {/* Analyst Chat */}
+          <AnalystChat slug={slug} />
 
-      {/* Incident feed — pinned at bottom, always visible */}
-      <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <IncidentFeed incidents={incidents} onFlyTo={onFlyTo} status={incidentStatus} />
+        </div>
+      )}
+
+      {/* Incident feed — three states: collapsed / normal / expanded */}
+      <div style={{
+        flex: feedFlex,
+        display: 'flex', flexDirection: 'column', minHeight: 0,
+        transition: 'flex 0.15s ease',
+      }}>
+        <IncidentFeed
+          incidents={incidents}
+          onFlyTo={onFlyTo}
+          status={incidentStatus}
+          size={feedSize}
+          onChangeSize={onFeedSizeChange}
+        />
       </div>
     </div>
   )
@@ -732,6 +750,8 @@ export default function TheaterPage() {
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null)
   const [selectedVesselId,   setSelectedVesselId]   = useState<string | null>(null)
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number } | null>(null)
+  const [feedSize, setFeedSize] = useState<FeedSize>('normal')
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
   type MobileTab = 'map' | 'intel' | 'posture'
   const isMobile = useMobile()
@@ -756,6 +776,32 @@ export default function TheaterPage() {
 
   const selectedAc = selectedAircraftId ? aircraft.find(a => a.icao24 === selectedAircraftId) ?? null : null
   const selectedVs = selectedVesselId   ? vessels.find(v => v.mmsi === selectedVesselId)      ?? null : null
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    if (!conflict) return
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      if (e.key === 'f' || e.key === 'F') {
+        setFeedSize(s => s === 'collapsed' ? 'normal' : 'collapsed')
+        return
+      }
+      if (e.key === 'Escape') {
+        if (paletteOpen) { setPaletteOpen(false); return }
+        setSelectedAircraftId(null)
+        setSelectedVesselId(null)
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [conflict, paletteOpen])
 
   function handleLayerToggle(key: keyof LayerState, value: boolean) {
     setLayers(prev => {
@@ -936,6 +982,8 @@ export default function TheaterPage() {
           slug={slug}
           isMobile={isMobile}
           visible={!isMobile || mobileTab === 'intel'}
+          feedSize={feedSize}
+          onFeedSizeChange={setFeedSize}
         />
 
         {/* Map area */}
@@ -961,6 +1009,45 @@ export default function TheaterPage() {
           )}
           {selectedVs && !selectedAc && (
             <VesselPopup v={selectedVs} onClose={() => setSelectedVesselId(null)} />
+          )}
+
+          {/* Keyboard shortcuts legend */}
+          {!isMobile && (
+            <div style={{
+              position: 'absolute', bottom: 12, right: 12, zIndex: 10,
+              background: 'var(--bg-elevated)',
+              borderRadius: 4, padding: '6px 10px',
+              fontFamily: "'Share Tech Mono', monospace",
+              display: 'flex', flexDirection: 'column', gap: 3,
+            }}>
+              <div style={{
+                fontSize: 7, color: 'var(--text-muted)', letterSpacing: '0.14em',
+                textTransform: 'uppercase', marginBottom: 2,
+              }}>
+                Shortcuts
+              </div>
+              {([
+                { key: 'L',   desc: 'Layers'  },
+                { key: 'F',   desc: 'Feed'    },
+                { key: '⌘K',  desc: 'Search'  },
+                { key: 'Esc', desc: 'Clear'   },
+              ] as const).map(({ key, desc }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    fontSize: 8, color: 'var(--text-primary)',
+                    background: 'var(--bg-overlay)',
+                    border: '1px solid var(--border-bright)',
+                    borderRadius: 2, padding: '1px 5px',
+                    minWidth: 22, textAlign: 'center', letterSpacing: '0.04em',
+                  }}>
+                    {key}
+                  </span>
+                  <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
+                    {desc}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -1020,6 +1107,17 @@ export default function TheaterPage() {
 
       {/* ── Status bar ──────────────────────────────────────── */}
       <DataFreshness />
+
+      {/* ── Command palette ──────────────────────────────────── */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        conflict={conflict}
+        layers={layers}
+        onToggleLayer={(k) => handleLayerToggle(k, !layers[k])}
+        aircraft={aircraft}
+        incidents={incidents}
+      />
     </div>
   )
 }

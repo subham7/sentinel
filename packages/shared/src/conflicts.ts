@@ -316,9 +316,92 @@ export const ISRAEL_GAZA: ConflictConfig = {
   },
 }
 
+// ─── Russia–Ukraine ────────────────────────────────────────────────────────────
+
+export const RUSSIA_UKRAINE: ConflictConfig = {
+  slug: 'russia-ukraine',
+  name: 'Russia–Ukraine',
+  shortName: 'Eastern Europe',
+  description: 'Full-scale Russian invasion of Ukraine. Active front lines across the east and south.',
+  status: 'active',
+  intensity: 'critical',
+  startDate: '2022-02-24',
+  parties: [
+    { name: 'Russia',  shortCode: 'RU',   color: '#ef4444', flagEmoji: '🇷🇺' },
+    { name: 'Ukraine', shortCode: 'UA',   color: '#3b82f6', flagEmoji: '🇺🇦' },
+    { name: 'NATO',    shortCode: 'NATO', color: '#a855f7', flagEmoji: '🟦' },
+  ],
+  map: {
+    center: [32.0, 49.0],
+    zoom: 5,
+    bounds: { latMin: 44, latMax: 53, lonMin: 22, lonMax: 42 },
+    theaters: [
+      { id: 'donbas',      name: 'Donbas Front',    bounds: { latMin: 47, latMax: 49.5, lonMin: 36, lonMax: 40 } },
+      { id: 'zaporizhzhia', name: 'Zaporizhzhia',   bounds: { latMin: 46, latMax: 48,   lonMin: 34, lonMax: 37 } },
+      { id: 'kherson',     name: 'Kherson/South',   bounds: { latMin: 46, latMax: 47.5, lonMin: 32, lonMax: 35 } },
+      { id: 'kharkiv',     name: 'Kharkiv Region',  bounds: { latMin: 49, latMax: 51,   lonMin: 35, lonMax: 38 } },
+    ],
+  },
+  dataSources: {
+    adsb: {
+      enabled: true,
+      queryPoints: [
+        { lat: 50.4, lon: 30.5, radiusNm: 250 },  // Kyiv
+        { lat: 50.0, lon: 36.2, radiusNm: 200 },  // Kharkiv
+        { lat: 46.5, lon: 30.7, radiusNm: 150 },  // Odesa
+      ],
+    },
+    ais: {
+      enabled: true,
+      boundingBoxes: [
+        [[41.0, 27.0], [47.5, 41.5]],  // Black Sea
+      ],
+    },
+    gdelt: {
+      enabled: true,
+      keywords: ['Ukraine', 'Russia', 'Zelensky', 'Putin', 'Kharkiv', 'Zaporizhzhia', 'Crimea', 'Bakhmut'],
+      cameoRootCodes: ['14', '15', '18', '19', '20'],
+    },
+    acled: {
+      enabled: true,
+      regions: [12],
+      countries: ['UKR', 'RUS', 'BLR'],
+    },
+    telegram: { channels: [] },
+  },
+  overlays: {
+    bases: [
+      { id: 'boryspil',          name: 'Kyiv Boryspil IAP',           lat: 50.3450, lon: 30.8946, type: 'airbase',  party: 'UA', country: 'Ukraine',   strikeRanges: [{ type: 'MiG-29 (UA)', rangeKm: 700 }, { type: 'Su-27 (UA)', rangeKm: 900 }] },
+      { id: 'myrhorod',          name: 'Myrhorod AB',                 lat: 49.9663, lon: 33.4796, type: 'airbase',  party: 'UA', country: 'Ukraine' },
+      { id: 'starokostiantyniv', name: 'Starokostiantyniv AB',        lat: 49.7367, lon: 27.1900, type: 'airbase',  party: 'UA', country: 'Ukraine',   strikeRanges: [{ type: 'Su-24M (UA)', rangeKm: 1200 }] },
+      { id: 'belgorod',          name: 'Belgorod AB',                 lat: 50.6439, lon: 36.5900, type: 'airbase',  party: 'RU', country: 'Russia',    strikeRanges: [{ type: 'Su-35S (RU)', rangeKm: 1500 }, { type: 'Su-34 (RU)', rangeKm: 1100 }] },
+      { id: 'minsk-machulishchy', name: 'Minsk-Machulishchy AB',     lat: 53.8645, lon: 27.5371, type: 'airbase',  party: 'RU', country: 'Belarus' },
+      { id: 'sevastopol',        name: 'Sevastopol Naval Base',       lat: 44.6235, lon: 33.5228, type: 'naval',    party: 'RU', country: 'Crimea' },
+    ],
+    chokepoints: [
+      { id: 'kerch',   name: 'Kerch Strait',  lat: 45.3,  lon: 36.5, radius_km: 40 },
+      { id: 'odesa',   name: 'Odesa Port',    lat: 46.48, lon: 30.73, radius_km: 25 },
+    ],
+    countryHighlights: [
+      { iso3: 'UKR', party: 'UA'   },
+      { iso3: 'RUS', party: 'RU'   },
+      { iso3: 'BLR', party: 'RU'   },
+      { iso3: 'POL', party: 'NATO' },
+      { iso3: 'ROU', party: 'NATO' },
+      { iso3: 'MDA', party: 'NATO' },
+      { iso3: 'HUN', party: 'NATO' },
+      { iso3: 'SVK', party: 'NATO' },
+    ],
+  },
+  card: {
+    accentColor: '#3b82f6',
+    keyMetrics: ['Aircraft tracked', 'AIS vessels', 'Incidents 24h', 'Front line'],
+  },
+}
+
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
-export const ALL_CONFLICTS: ConflictConfig[] = [US_IRAN, ISRAEL_GAZA]
+export const ALL_CONFLICTS: ConflictConfig[] = [US_IRAN, ISRAEL_GAZA, RUSSIA_UKRAINE]
 
 export function getConflict(slug: string): ConflictConfig | undefined {
   return ALL_CONFLICTS.find(c => c.slug === slug)

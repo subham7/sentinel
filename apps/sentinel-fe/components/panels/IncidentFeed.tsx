@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Incident } from '@sentinel/shared'
 
 const SEV_COLORS: Record<number, string> = {
@@ -33,112 +35,221 @@ function timeAgo(iso: string): string {
   return `${Math.floor(diffH / 24)}d ago`
 }
 
+export type FeedSize = 'collapsed' | 'normal' | 'expanded'
+
 interface Props {
-  incidents: Incident[]
-  onFlyTo?:  (lat: number, lon: number) => void
-  status:    'connecting' | 'connected' | 'error'
+  incidents:    Incident[]
+  onFlyTo?:     (lat: number, lon: number) => void
+  status:       'connecting' | 'connected' | 'error'
+  size:         FeedSize
+  onChangeSize: (s: FeedSize) => void
 }
 
-export default function IncidentFeed({ incidents, onFlyTo, status }: Props) {
-  const statusColor = status === 'connected' ? '#22c55e' : status === 'error' ? '#ef4444' : '#eab308'
+const FEED_ACCENT = '#f97316'
 
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
-      borderTop: '1px solid var(--border)',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '6px 12px', flexShrink: 0, borderBottom: '1px solid var(--border)',
-      }}>
-        <span style={{
-          fontSize: 10, color: 'var(--text-secondary)',
-          letterSpacing: '0.12em', textTransform: 'uppercase',
-          fontFamily: "'Share Tech Mono', monospace",
-        }}>
-          Incident Feed
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+export default function IncidentFeed({ incidents, onFlyTo, status, size, onChangeSize }: Props) {
+  const isLive = status === 'connected'
+  const dotColor = isLive ? '#22c55e' : status === 'error' ? '#ef4444' : '#eab308'
+
+  const parentRef = useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: incidents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 62,
+    overscan: 5,
+  })
+
+  // ── Header ──────────────────────────────────────────────────────────────
+  const header = (
+    <div
+      onClick={size === 'collapsed' ? () => onChangeSize('normal') : undefined}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 10px 0 0',
+        height: 40, flexShrink: 0,
+        background: 'var(--bg-elevated)',
+        borderTop: `2px solid ${FEED_ACCENT}`,
+        borderBottom: size === 'collapsed' ? 'none' : '1px solid var(--border)',
+        cursor: size === 'collapsed' ? 'pointer' : 'default',
+      }}
+    >
+      {/* Left: accent bar + label + live dot */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflow: 'hidden' }}>
+        <div style={{
+          width: 3, alignSelf: 'stretch', background: FEED_ACCENT, flexShrink: 0,
+        }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px' }}>
           <span style={{
-            width: 5, height: 5, borderRadius: '50%', display: 'inline-block',
-            background: statusColor,
-            animation: status === 'connected' ? 'pulse-opacity 2s ease-in-out infinite' : undefined,
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: dotColor,
+            animation: isLive ? 'pulse-opacity 2s ease-in-out infinite' : undefined,
           }} />
           <span style={{
-            fontSize: 9, color: statusColor,
-            fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.1em',
+            fontFamily: "'Orbitron', monospace",
+            fontSize: 11, fontWeight: 700,
+            color: 'var(--text-primary)', letterSpacing: '0.1em',
           }}>
-            {status === 'connected' ? `${incidents.length} EVENTS` : status.toUpperCase()}
+            INCIDENT FEED
           </span>
+          {/* Event count badge */}
+          {incidents.length > 0 && (
+            <span style={{
+              fontSize: 9,
+              color: FEED_ACCENT,
+              background: `${FEED_ACCENT}18`,
+              border: `1px solid ${FEED_ACCENT}50`,
+              borderRadius: 2,
+              padding: '1px 6px',
+              fontFamily: "'Share Tech Mono', monospace",
+              letterSpacing: '0.08em',
+            }}>
+              {incidents.length} EVT
+            </span>
+          )}
+          {size === 'collapsed' && (
+            <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+              — click to open
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Feed */}
-      <div style={{ overflowY: 'auto', flex: 1 }}>
+      {/* Right: expand / collapse controls */}
+      {size !== 'collapsed' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+          {/* Expand / shrink toggle */}
+          <button
+            title={size === 'expanded' ? 'Restore default size' : 'Expand feed'}
+            onClick={() => onChangeSize(size === 'expanded' ? 'normal' : 'expanded')}
+            style={{
+              background: size === 'expanded' ? `${FEED_ACCENT}22` : 'transparent',
+              border: `1px solid ${size === 'expanded' ? FEED_ACCENT + '60' : 'var(--border-bright)'}`,
+              borderRadius: 2,
+              color: size === 'expanded' ? FEED_ACCENT : '#94a3b8',
+              cursor: 'pointer',
+              fontSize: 15, lineHeight: 1,
+              padding: '3px 7px',
+              fontFamily: "'Share Tech Mono', monospace",
+            }}
+            onMouseEnter={e => { if (size !== 'expanded') { e.currentTarget.style.color = '#e2e8f0'; e.currentTarget.style.borderColor = 'var(--border-bright)' } }}
+            onMouseLeave={e => { if (size !== 'expanded') { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'var(--border-bright)' } }}
+          >
+            {size === 'expanded' ? '↓' : '↑'}
+          </button>
+
+          {/* Collapse to header */}
+          <button
+            title="Collapse feed (F)"
+            onClick={() => onChangeSize('collapsed')}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border-bright)',
+              borderRadius: 2,
+              color: '#94a3b8',
+              cursor: 'pointer',
+              fontSize: 15, lineHeight: 1,
+              padding: '3px 7px',
+              fontFamily: "'Share Tech Mono', monospace",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#e2e8f0' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8' }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  if (size === 'collapsed') return header
+
+  // ── Feed list ────────────────────────────────────────────────────────────
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      flex: 1, overflow: 'hidden',
+    }}>
+      {header}
+
+      <div ref={parentRef} style={{ overflowY: 'auto', flex: 1 }}>
         {incidents.length === 0 ? (
           <div style={{
-            padding: '16px 12px', textAlign: 'center',
+            padding: '20px 12px', textAlign: 'center',
             fontSize: 10, color: 'var(--text-muted)',
             fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.08em',
           }}>
             {status === 'connecting' ? 'CONNECTING...' : '// NO INCIDENTS'}
           </div>
-        ) : incidents.map(inc => {
-          const color = SEV_COLORS[inc.severity] ?? '#94a3b8'
-          return (
-            <div
-              key={inc.id}
-              onClick={() => inc.lat && inc.lon && onFlyTo?.(inc.lat, inc.lon)}
-              style={{
-                padding: '6px 12px 6px 10px',
-                borderBottom: '1px solid rgba(255,255,255,0.03)',
-                borderLeft: `3px solid ${color}`,
-                cursor: inc.lat && inc.lon ? 'pointer' : 'default',
-                fontFamily: "'Share Tech Mono', monospace",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-overlay)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              {/* Top row: severity badge + source + time */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{
-                    fontSize: 8, color: color,
-                    padding: '1px 4px',
-                    background: `${color}18`,
-                    border: `1px solid ${color}40`,
-                    borderRadius: 2, letterSpacing: '0.1em',
-                  }}>
-                    {SEV_LABELS[inc.severity]}
-                  </span>
-                  <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                    {CAT_ICONS[inc.category]} {SOURCE_LABELS[inc.source] ?? inc.source}
-                  </span>
-                </div>
-                <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
-                  {timeAgo(inc.timestamp)}
-                </span>
-              </div>
+        ) : (
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualizer.getVirtualItems().map(vItem => {
+              const inc = incidents[vItem.index]
+              if (!inc) return null
+              const color = SEV_COLORS[inc.severity] ?? '#94a3b8'
+              return (
+                <div
+                  key={vItem.key}
+                  data-index={vItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute', top: 0, left: 0, width: '100%',
+                    transform: `translateY(${vItem.start}px)`,
+                  }}
+                >
+                  <div
+                    onClick={() => inc.lat && inc.lon && onFlyTo?.(inc.lat, inc.lon)}
+                    style={{
+                      padding: '7px 12px 7px 10px',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      borderLeft: `3px solid ${color}`,
+                      cursor: inc.lat && inc.lon ? 'pointer' : 'default',
+                      fontFamily: "'Share Tech Mono', monospace",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-overlay)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {/* Top row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{
+                          fontSize: 8, color,
+                          padding: '1px 4px',
+                          background: `${color}18`,
+                          border: `1px solid ${color}40`,
+                          borderRadius: 2, letterSpacing: '0.1em',
+                        }}>
+                          {SEV_LABELS[inc.severity]}
+                        </span>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                          {CAT_ICONS[inc.category] ?? '●'} {SOURCE_LABELS[inc.source] ?? inc.source}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
+                        {timeAgo(inc.timestamp)}
+                      </span>
+                    </div>
 
-              {/* Title */}
-              <div style={{
-                fontSize: 10, color: 'var(--text-primary)', lineHeight: 1.4,
-                overflow: 'hidden', display: '-webkit-box',
-                WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-              }}>
-                {inc.title}
-              </div>
+                    {/* Title */}
+                    <div style={{
+                      fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.4,
+                      overflow: 'hidden', display: '-webkit-box',
+                      WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                    }}>
+                      {inc.title}
+                    </div>
 
-              {/* Location */}
-              {inc.location_name && (
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {inc.location_name}
+                    {/* Location */}
+                    {inc.location_name && (
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>
+                        {inc.location_name}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          )
-        })}
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
