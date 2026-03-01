@@ -13,6 +13,7 @@ import { cacheGet } from './services/cache.js'
 import { registerAircraftRoutes }  from './routes/aircraft.js'
 import { registerVesselRoutes }    from './routes/vessels.js'
 import { registerIncidentRoutes }  from './routes/incidents.js'
+import { registerNuclearRoutes }   from './routes/nuclear.js'
 import { getRecentIncidents }      from './db/queries.js'
 import { startWorkers } from './workers/index.js'
 
@@ -28,7 +29,7 @@ await app.register(websocket)
 
 app.get('/health', async () => ({
   status:    'ok',
-  phase:     3,
+  phase:     4,
   uptime:    process.uptime(),
   timestamp: new Date().toISOString(),
 }))
@@ -93,6 +94,7 @@ await registerVesselRoutes(app)
 // ── Incident routes (REST + SSE) ─────────────────────────────────────────────
 
 await registerIncidentRoutes(app)
+await registerNuclearRoutes(app)
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/theater', async (req, reply) => {
   const conflict = getConflict(req.params.slug)

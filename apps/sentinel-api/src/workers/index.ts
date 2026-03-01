@@ -3,6 +3,7 @@ import { startAISWorker }      from './ais.worker.js'
 import { startGDELTWorker }    from './gdelt.worker.js'
 import { startACLEDWorker }    from './acled.worker.js'
 import { startTelegramWorker } from './telegram.worker.js'
+import { startIAEAWorker }     from './iaea.worker.js'
 
 export function startWorkers(): void {
   console.log('[workers] starting...')
@@ -11,4 +12,5 @@ export function startWorkers(): void {
   startGDELTWorker()
   startACLEDWorker()
   startTelegramWorker()
+  startIAEAWorker()
 }

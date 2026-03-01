@@ -4,21 +4,17 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { circle as turfCircle } from '@turf/turf'
-import type { ConflictConfig, Aircraft, Vessel, Incident } from '@sentinel/shared'
+import type { ConflictConfig, Aircraft, Vessel, Incident, MilitaryBase } from '@sentinel/shared'
 
 const CARTO_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
 
-const PARTY_COLORS: Record<string, string> = {
-  US:      '#00b0ff',
-  IR:      '#ef4444',
-  IL:      '#22c55e',
-  GCC:     '#f59e0b',
-  PS:      '#ef4444',
-  LB:      '#f97316',
-  UN:      '#94a3b8',
-  NATO:    '#a855f7',
-  ALLIED:  '#f59e0b',
-  UNKNOWN: '#94a3b8',
+// Build party → color map from conflict config (config-driven, no hardcoding)
+function buildPartyColorMap(conflict: ConflictConfig): Record<string, string> {
+  const base: Record<string, string> = {
+    ALLIED: '#f59e0b', NATO: '#a855f7', UNKNOWN: '#94a3b8',
+  }
+  for (const p of conflict.parties) base[p.shortCode] = p.color
+  return base
 }
 
 const NUCLEAR_STATUS_COLORS: Record<string, string> = {
@@ -30,14 +26,16 @@ const NUCLEAR_STATUS_COLORS: Record<string, string> = {
 }
 
 export interface LayerState {
-  aircraft:    boolean
-  vessels:     boolean
-  incidents:   boolean
-  heatmap:     boolean
-  bases:       boolean
-  nuclear:     boolean
-  sam:         boolean
-  chokepoints: boolean
+  aircraft:      boolean
+  vessels:       boolean
+  incidents:     boolean
+  heatmap:       boolean
+  bases:         boolean
+  nuclear:       boolean
+  sam:           boolean
+  shippingLanes: boolean
+  chokepoints:   boolean
+  strikeRanges:  boolean
 }
 
 const SEV_COLORS: Record<number, string> = {
@@ -50,6 +48,7 @@ interface Props {
   aircraft:         Aircraft[]
   vessels:          Vessel[]
   incidents:        Incident[]
+  nuclearStatuses?: Map<string, string>   // siteId → overridden status from IAEA
   selectedId?:      string | null
   onPickAircraft?:  (ac: Aircraft | null) => void
   onPickVessel?:    (v: Vessel | null) => void
@@ -125,7 +124,7 @@ function createVesselSDF(size = 32): ImageData {
 
 // ── Build GeoJSON from aircraft array ─────────────────────────────────────────
 
-function buildAircraftGeoJSON(aircraft: Aircraft[]): GeoJSON.FeatureCollection {
+function buildAircraftGeoJSON(aircraft: Aircraft[], colorMap: Record<string, string>): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: aircraft.map(ac => ({
@@ -141,13 +140,13 @@ function buildAircraftGeoJSON(aircraft: Aircraft[]): GeoJSON.FeatureCollection {
         altitude: ac.altitude,
         speed:    ac.speed,
         heading:  ac.heading,
-        color:    PARTY_COLORS[ac.side] ?? '#94a3b8',
+        color:    colorMap[ac.side] ?? '#94a3b8',
       },
     })),
   }
 }
 
-function buildTrailGeoJSON(aircraft: Aircraft[]): GeoJSON.FeatureCollection {
+function buildTrailGeoJSON(aircraft: Aircraft[], colorMap: Record<string, string>): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: aircraft
@@ -155,7 +154,7 @@ function buildTrailGeoJSON(aircraft: Aircraft[]): GeoJSON.FeatureCollection {
       .map(ac => ({
         type: 'Feature',
         geometry: { type: 'LineString', coordinates: ac.trail },
-        properties: { color: PARTY_COLORS[ac.side] ?? '#94a3b8' },
+        properties: { color: colorMap[ac.side] ?? '#94a3b8' },
       })),
   }
 }
@@ -166,7 +165,7 @@ const VESSEL_TYPE_LABELS: Record<string, string> = {
   warship: '⚓', tanker: '🛢', cargo: '📦', fast_boat: '⚡', submarine: '◎', unknown: '◇',
 }
 
-function buildVesselGeoJSON(vessels: Vessel[]): GeoJSON.FeatureCollection {
+function buildVesselGeoJSON(vessels: Vessel[], colorMap: Record<string, string>): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: vessels.map(v => ({
@@ -182,7 +181,7 @@ function buildVesselGeoJSON(vessels: Vessel[]): GeoJSON.FeatureCollection {
         sanctioned: v.sanctioned,
         heading:   v.heading,
         speed:     v.speed,
-        color:     v.ais_dark ? '#94a3b8' : (PARTY_COLORS[v.side] ?? '#94a3b8'),
+        color:     v.ais_dark ? '#94a3b8' : (colorMap[v.side] ?? '#94a3b8'),
       },
     })),
   }
@@ -214,6 +213,62 @@ function buildIncidentGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection 
   }
 }
 
+// ── Strike range ring helpers ─────────────────────────────────────────────────
+
+const STRIKE_RING_COLORS = ['#00b0ff22', '#00b0ff18', '#00b0ff10']
+const STRIKE_RING_LINES  = ['#00b0ff60', '#00b0ff40', '#00b0ff28']
+
+function addStrikeRings(map: maplibregl.Map, base: MilitaryBase, partyColor: string): void {
+  if (!base.strikeRanges?.length) return
+  const alpha = partyColor + '22'
+  const line  = partyColor + '55'
+  const features = base.strikeRanges.map(r =>
+    turfCircle([base.lon, base.lat], r.rangeKm, { steps: 64, units: 'kilometers', properties: { type: r.type, rangeKm: r.rangeKm } }),
+  )
+  const sourceId = `strike-${base.id}`
+  if (map.getSource(sourceId)) return
+
+  map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features } })
+  map.addLayer({
+    id: `${sourceId}-fill`, type: 'fill', source: sourceId,
+    paint: { 'fill-color': alpha, 'fill-opacity': 1 },
+  })
+  map.addLayer({
+    id: `${sourceId}-line`, type: 'line', source: sourceId,
+    paint: { 'line-color': line, 'line-width': 1, 'line-dasharray': [4, 3] },
+  })
+  map.addLayer({
+    id: `${sourceId}-label`, type: 'symbol', source: sourceId, minzoom: 5,
+    layout: {
+      'text-field':   ['concat', ['get', 'type'], '  ', ['get', 'rangeKm'], ' km'],
+      'text-font':    ['Noto Sans Regular'],
+      'text-size':    9,
+      'text-offset':  [0, -0.6],
+      'text-anchor':  'bottom',
+      'symbol-placement': 'line',
+    },
+    paint: { 'text-color': line, 'text-halo-color': 'rgba(0,0,0,0.8)', 'text-halo-width': 1 },
+  })
+}
+
+function removeStrikeRings(map: maplibregl.Map, base: MilitaryBase): void {
+  const sourceId = `strike-${base.id}`
+  if (map.getLayer(`${sourceId}-label`)) map.removeLayer(`${sourceId}-label`)
+  if (map.getLayer(`${sourceId}-line`))  map.removeLayer(`${sourceId}-line`)
+  if (map.getLayer(`${sourceId}-fill`))  map.removeLayer(`${sourceId}-fill`)
+  if (map.getSource(sourceId))           map.removeSource(sourceId)
+}
+
+// ── Shipping lane animation ───────────────────────────────────────────────────
+
+// Pre-computed dash sequences to simulate lane movement
+const DASH_SEQUENCES = [
+  [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
+  [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0],
+  [0, 0.5, 3, 3.5], [0, 1, 3, 3], [0, 1.5, 3, 2.5],
+  [0, 2, 3, 2], [0, 2.5, 3, 1.5], [0, 3, 3, 1], [0, 3.5, 3, 0.5],
+]
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TheaterMap({
@@ -222,6 +277,7 @@ export default function TheaterMap({
   aircraft,
   vessels,
   incidents,
+  nuclearStatuses,
   selectedId    = null,
   onPickAircraft,
   onPickVessel,
@@ -243,12 +299,16 @@ export default function TheaterMap({
   const vesselsRef    = useRef<Vessel[]>(vessels)
   const incidentsRef  = useRef<Incident[]>(incidents)
   const selectedRef   = useRef<string | null>(selectedId)
+  // Shipping lane animation frame
+  const laneAnimRef       = useRef<number>(0)
+  const partyColorMapRef  = useRef<Record<string, string>>(buildPartyColorMap(conflict))
 
-  layersRef.current   = layers
-  aircraftRef.current = aircraft
-  vesselsRef.current  = vessels
-  incidentsRef.current = incidents
-  selectedRef.current = selectedId
+  layersRef.current       = layers
+  aircraftRef.current     = aircraft
+  vesselsRef.current      = vessels
+  incidentsRef.current    = incidents
+  selectedRef.current     = selectedId
+  partyColorMapRef.current = buildPartyColorMap(conflict)
 
   const applyMarkerVisibility = useCallback((map: maplibregl.Map, ls: LayerState) => {
     markersRef.current.bases.forEach(m => ls.bases ? m.addTo(map) : m.remove())
@@ -282,6 +342,12 @@ export default function TheaterMap({
     if (map.getLayer('incidents-labels'))  map.setLayoutProperty('incidents-labels',  'visibility', iv)
   }, [])
 
+  const applyShippingLaneVisibility = useCallback((map: maplibregl.Map, visible: boolean) => {
+    const vis = visible ? 'visible' : 'none'
+    if (map.getLayer('shipping-lanes'))      map.setLayoutProperty('shipping-lanes',      'visibility', vis)
+    if (map.getLayer('shipping-lanes-glow')) map.setLayoutProperty('shipping-lanes-glow', 'visibility', vis)
+  }, [])
+
   // ── Mount map ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -308,7 +374,7 @@ export default function TheaterMap({
       // ── Aircraft trails (lines) ───────────────────────────────
       map.addSource('aircraft-trails', {
         type: 'geojson',
-        data: buildTrailGeoJSON(aircraftRef.current),
+        data: buildTrailGeoJSON(aircraftRef.current, partyColorMapRef.current),
       })
       map.addLayer({
         id:     'aircraft-trails',
@@ -325,7 +391,7 @@ export default function TheaterMap({
       // ── Aircraft positions + labels (single symbol layer) ─────
       map.addSource('aircraft', {
         type:    'geojson',
-        data:    buildAircraftGeoJSON(aircraftRef.current),
+        data:    buildAircraftGeoJSON(aircraftRef.current, partyColorMapRef.current),
         cluster: false,
       })
       map.addLayer({
@@ -393,7 +459,7 @@ export default function TheaterMap({
 
       map.addSource('vessels', {
         type: 'geojson',
-        data: buildVesselGeoJSON(vesselsRef.current),
+        data: buildVesselGeoJSON(vesselsRef.current, partyColorMapRef.current),
       })
       map.addLayer({
         id:     'vessels',
@@ -474,13 +540,26 @@ export default function TheaterMap({
       }
 
       // ── Military bases ────────────────────────────────────────
+      const partyColorMap = buildPartyColorMap(conflict)
       const bases: maplibregl.Marker[] = []
       conflict.overlays.bases.forEach(base => {
-        const color = PARTY_COLORS[base.party] ?? '#94a3b8'
+        const color = partyColorMap[base.party] ?? '#94a3b8'
         const el    = document.createElement('div')
         el.className   = 's-base-marker'
         el.style.color = color
         el.title       = `${base.name} (${base.party})`
+
+        const hasRanges = (base.strikeRanges?.length ?? 0) > 0
+        const rangesHtml = hasRanges ? `
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08)">
+            <div style="color:#94a3b8;font-size:8px;letter-spacing:0.12em;margin-bottom:4px">STRIKE RANGES</div>
+            ${base.strikeRanges!.map(r => `
+              <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:2px">
+                <span style="color:#e2e8f0">${r.type}</span>
+                <span style="color:${color}">${r.rangeKm} km</span>
+              </div>
+            `).join('')}
+          </div>` : ''
 
         const popup = new maplibregl.Popup({
           closeButton: false, closeOnClick: false, offset: 14, className: 'sentinel-popup',
@@ -494,11 +573,18 @@ export default function TheaterMap({
             <div style="display:flex;justify-content:space-between;color:#94a3b8;font-size:10px;margin-top:2px">
               <span>COUNTRY</span><span style="color:#e2e8f0">${base.country}</span>
             </div>
+            ${rangesHtml}
           </div>
         `)
 
-        el.addEventListener('mouseenter', () => marker.setPopup(popup).togglePopup())
-        el.addEventListener('mouseleave', () => { if (popup.isOpen()) popup.remove() })
+        el.addEventListener('mouseenter', () => {
+          marker.setPopup(popup).togglePopup()
+          if (layersRef.current.strikeRanges) addStrikeRings(map, base, color)
+        })
+        el.addEventListener('mouseleave', () => {
+          if (popup.isOpen()) popup.remove()
+          removeStrikeRings(map, base)
+        })
 
         const marker = new maplibregl.Marker({ element: el }).setLngLat([base.lon, base.lat])
         if (layersRef.current.bases) marker.addTo(map)
@@ -509,7 +595,8 @@ export default function TheaterMap({
       // ── Nuclear sites ─────────────────────────────────────────
       const nuclear: maplibregl.Marker[] = []
       ;(conflict.overlays.nuclearSites ?? []).forEach(site => {
-        const color = NUCLEAR_STATUS_COLORS[site.status] ?? '#a855f7'
+        const liveStatus = nuclearStatuses?.get(site.id) ?? site.status
+        const color = NUCLEAR_STATUS_COLORS[liveStatus] ?? '#a855f7'
         const el    = document.createElement('div')
         el.className   = 's-nuclear-marker'
         el.style.color = '#a855f7'
@@ -524,7 +611,7 @@ export default function TheaterMap({
             <div style="font-weight:700;margin-bottom:6px">${site.name}</div>
             <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px">
               <span style="color:#94a3b8">STATUS</span>
-              <span style="color:${color};text-transform:uppercase;letter-spacing:0.08em">${site.status}</span>
+              <span style="color:${color};text-transform:uppercase;letter-spacing:0.08em">${liveStatus}</span>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px">
               <span style="color:#94a3b8">ENRICHMENT</span>
@@ -577,6 +664,29 @@ export default function TheaterMap({
         chokepoints.push(marker)
       })
       markersRef.current.chokepoints = chokepoints
+
+      // ── Shipping lanes ────────────────────────────────────────
+      const lanes = conflict.overlays.shippingLanes ?? []
+      if (lanes.length > 0) {
+        const features = lanes.map(lane => ({
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: lane.coordinates },
+          properties: { id: lane.id, name: lane.name },
+        }))
+        map.addSource('shipping-lanes', { type: 'geojson', data: { type: 'FeatureCollection', features } })
+        // Glow layer (wider, more transparent)
+        map.addLayer({
+          id: 'shipping-lanes-glow', type: 'line', source: 'shipping-lanes',
+          layout: { visibility: layersRef.current.shippingLanes ? 'visible' : 'none', 'line-cap': 'round' },
+          paint: { 'line-color': 'rgba(148,163,184,0.15)', 'line-width': 6 },
+        })
+        // Main lane line
+        map.addLayer({
+          id: 'shipping-lanes', type: 'line', source: 'shipping-lanes',
+          layout: { visibility: layersRef.current.shippingLanes ? 'visible' : 'none', 'line-cap': 'round' },
+          paint: { 'line-color': 'rgba(148,163,184,0.5)', 'line-width': 1.5, 'line-dasharray': [5, 3] },
+        })
+      }
 
       // ── Incident heatmap + circles ────────────────────────────
       map.addSource('incidents', {
@@ -656,6 +766,7 @@ export default function TheaterMap({
     })
 
     return () => {
+      cancelAnimationFrame(laneAnimRef.current)
       markersRef.current.bases.forEach(m => m.remove())
       markersRef.current.nuclear.forEach(m => m.remove())
       markersRef.current.chokepoints.forEach(m => m.remove())
@@ -674,8 +785,8 @@ export default function TheaterMap({
     if (!map || !mapLoaded) return
     const acSource    = map.getSource('aircraft')        as maplibregl.GeoJSONSource | undefined
     const trailSource = map.getSource('aircraft-trails') as maplibregl.GeoJSONSource | undefined
-    if (acSource)    acSource.setData(buildAircraftGeoJSON(aircraft))
-    if (trailSource) trailSource.setData(buildTrailGeoJSON(aircraft))
+    if (acSource)    acSource.setData(buildAircraftGeoJSON(aircraft, partyColorMapRef.current))
+    if (trailSource) trailSource.setData(buildTrailGeoJSON(aircraft, partyColorMapRef.current))
   }, [aircraft, mapLoaded])
 
   // ── Selection highlight (panel click OR map click both update selectedId) ──
@@ -710,7 +821,7 @@ export default function TheaterMap({
     const map = mapRef.current
     if (!map || !mapLoaded) return
     const vsSource = map.getSource('vessels') as maplibregl.GeoJSONSource | undefined
-    if (vsSource) vsSource.setData(buildVesselGeoJSON(vessels))
+    if (vsSource) vsSource.setData(buildVesselGeoJSON(vessels, partyColorMapRef.current))
   }, [vessels, mapLoaded])
 
   // ── Update incident GeoJSON when data changes ─────────────────────────────
@@ -730,6 +841,43 @@ export default function TheaterMap({
     map.flyTo({ center: [flyTo.lon, flyTo.lat], zoom: flyTo.zoom ?? 8, duration: 1200 })
   }, [flyTo, mapLoaded])
 
+  // ── Shipping lane animated dash ────────────────────────────────────────────
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || !layers.shippingLanes) {
+      cancelAnimationFrame(laneAnimRef.current)
+      return
+    }
+    if (!map.getLayer('shipping-lanes')) return
+
+    // Capture non-null map reference after the null guard above
+    const m = map
+    let step = 0
+    let lastTick = 0
+    const TICK_MS = 80   // ~12fps for the animation
+    function frame(now: number) {
+      if (now - lastTick >= TICK_MS) {
+        lastTick = now
+        step = (step + 1) % DASH_SEQUENCES.length
+        if (m.getLayer('shipping-lanes')) {
+          m.setPaintProperty('shipping-lanes', 'line-dasharray', DASH_SEQUENCES[step] ?? [5, 3])
+        }
+      }
+      laneAnimRef.current = requestAnimationFrame(frame)
+    }
+    laneAnimRef.current = requestAnimationFrame(frame)
+    return () => cancelAnimationFrame(laneAnimRef.current)
+  }, [layers.shippingLanes, mapLoaded])
+
+  // ── Remove strike rings when toggle is turned off ─────────────────────────
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || layers.strikeRanges) return
+    conflict.overlays.bases.forEach(base => removeStrikeRings(map, base))
+  }, [layers.strikeRanges, mapLoaded, conflict.overlays.bases])
+
   // ── Sync layer visibility ─────────────────────────────────────────────────
 
   useEffect(() => {
@@ -740,7 +888,8 @@ export default function TheaterMap({
     applyAircraftVisibility(map, layers.aircraft)
     applyVesselVisibility(map, layers.vessels)
     applyIncidentVisibility(map, layers.incidents, layers.heatmap)
-  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility])
+    applyShippingLaneVisibility(map, layers.shippingLanes)
+  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

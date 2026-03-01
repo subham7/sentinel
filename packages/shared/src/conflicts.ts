@@ -9,6 +9,13 @@ export interface MilitaryBase {
   type: 'airbase' | 'naval' | 'army' | 'combined'
   party: string         // shortCode of the party that operates it
   country: string
+  strikeRanges?: { type: string; rangeKm: number }[]
+}
+
+export interface ShippingLane {
+  id: string
+  name: string
+  coordinates: [number, number][]   // [lon, lat] pairs
 }
 
 export interface NuclearSite {
@@ -94,6 +101,7 @@ export interface ConflictConfig {
     bases: MilitaryBase[]
     nuclearSites?: NuclearSite[]
     samSites?: SamSite[]
+    shippingLanes?: ShippingLane[]
     chokepoints?: Chokepoint[]
   }
 
@@ -162,14 +170,14 @@ export const US_IRAN: ConflictConfig = {
   },
   overlays: {
     bases: [
-      { id: 'al-udeid',      name: 'Al Udeid AB',        lat: 25.1173, lon: 51.3150, type: 'airbase',  party: 'US',  country: 'Qatar' },
-      { id: 'al-dhafra',     name: 'Al Dhafra AB',       lat: 24.2481, lon: 54.5483, type: 'airbase',  party: 'US',  country: 'UAE' },
-      { id: 'bahrain-5th',   name: 'NSA Bahrain (5th Fleet)', lat: 26.2361, lon: 50.5954, type: 'naval', party: 'US', country: 'Bahrain' },
-      { id: 'camp-arifjan',  name: 'Camp Arifjan',       lat: 29.1130, lon: 48.0851, type: 'army',    party: 'US',  country: 'Kuwait' },
-      { id: 'prince-sultan', name: 'Prince Sultan AB',   lat: 24.0627, lon: 47.5802, type: 'airbase',  party: 'US',  country: 'Saudi Arabia' },
-      { id: 'bandar-abbas',  name: 'Bandar Abbas',       lat: 27.2189, lon: 56.3639, type: 'naval',   party: 'IR',  country: 'Iran' },
-      { id: 'bushehr-ab',    name: 'Bushehr AB',         lat: 28.9448, lon: 50.8347, type: 'airbase',  party: 'IR',  country: 'Iran' },
-      { id: 'isfahan-ab',    name: 'Isfahan AB',         lat: 32.6207, lon: 51.6611, type: 'airbase',  party: 'IR',  country: 'Iran' },
+      { id: 'al-udeid',      name: 'Al Udeid AB',        lat: 25.1173, lon: 51.3150, type: 'airbase', party: 'US', country: 'Qatar',        strikeRanges: [{ type: 'F-22A', rangeKm: 760 }, { type: 'F-35A', rangeKm: 1100 }, { type: 'F-15E (ext.)', rangeKm: 2200 }] },
+      { id: 'al-dhafra',     name: 'Al Dhafra AB',       lat: 24.2481, lon: 54.5483, type: 'airbase', party: 'US', country: 'UAE',           strikeRanges: [{ type: 'F-35A', rangeKm: 1100 }, { type: 'F-22A', rangeKm: 760 }] },
+      { id: 'prince-sultan', name: 'Prince Sultan AB',   lat: 24.0627, lon: 47.5802, type: 'airbase', party: 'US', country: 'Saudi Arabia',  strikeRanges: [{ type: 'F-15E', rangeKm: 1700 }, { type: 'ALCM', rangeKm: 2500 }] },
+      { id: 'bahrain-5th',   name: 'NSA Bahrain (5th Fleet)', lat: 26.2361, lon: 50.5954, type: 'naval',   party: 'US', country: 'Bahrain' },
+      { id: 'camp-arifjan',  name: 'Camp Arifjan',       lat: 29.1130, lon: 48.0851, type: 'army',    party: 'US', country: 'Kuwait' },
+      { id: 'bandar-abbas',  name: 'Bandar Abbas',       lat: 27.2189, lon: 56.3639, type: 'naval',   party: 'IR', country: 'Iran' },
+      { id: 'bushehr-ab',    name: 'Bushehr AB',         lat: 28.9448, lon: 50.8347, type: 'airbase', party: 'IR', country: 'Iran' },
+      { id: 'isfahan-ab',    name: 'Isfahan AB',         lat: 32.6207, lon: 51.6611, type: 'airbase', party: 'IR', country: 'Iran' },
     ],
     nuclearSites: [
       { id: 'natanz',   name: 'Natanz FEP',   lat: 33.7235, lon: 51.7271, status: 'active',      enrichment: '60%' },
@@ -184,6 +192,26 @@ export const US_IRAN: ConflictConfig = {
       { id: 'sam-tehran-s',   name: 'S-300 Tehran South',  lat: 35.45,  lon: 51.15,  system: 'S-300PMU2',  range_km: 200, party: 'IR' },
       { id: 'sam-fordow',     name: 'Bavar-373 Fordow',    lat: 34.884, lon: 50.996, system: 'Bavar-373',  range_km: 200, party: 'IR' },
       { id: 'sam-tehran-n',   name: 'Khordad-15 Tehran N', lat: 35.75,  lon: 51.30,  system: 'Khordad-15', range_km: 120, party: 'IR' },
+    ],
+    shippingLanes: [
+      {
+        id: 'persian-gulf-main',
+        name: 'Persian Gulf Main Channel',
+        coordinates: [
+          [56.6, 26.0], [55.0, 25.8], [53.5, 26.2],
+          [52.0, 26.5], [50.8, 26.8], [49.5, 27.4],
+          [48.8, 28.2], [48.3, 29.0],
+        ],
+      },
+      {
+        id: 'red-sea-main',
+        name: 'Red Sea Main Channel',
+        coordinates: [
+          [43.5, 12.8], [42.8, 14.5], [41.5, 17.0],
+          [39.5, 20.5], [38.0, 23.0], [36.2, 26.0],
+          [34.5, 28.5], [32.5, 30.0],
+        ],
+      },
     ],
     chokepoints: [
       { id: 'hormuz',      name: 'Strait of Hormuz', lat: 26.5, lon: 56.3, radius_km: 50 },
@@ -252,9 +280,9 @@ export const ISRAEL_GAZA: ConflictConfig = {
   },
   overlays: {
     bases: [
-      { id: 'tel-nof',   name: 'Tel Nof AB',    lat: 31.840, lon: 34.818, type: 'airbase', party: 'IL', country: 'Israel' },
-      { id: 'hatzerim',  name: 'Hatzerim AB',   lat: 31.225, lon: 34.664, type: 'airbase', party: 'IL', country: 'Israel' },
-      { id: 'ramat-david', name: 'Ramat David AB', lat: 32.665, lon: 35.179, type: 'airbase', party: 'IL', country: 'Israel' },
+      { id: 'tel-nof',     name: 'Tel Nof AB',     lat: 31.840, lon: 34.818, type: 'airbase', party: 'IL', country: 'Israel', strikeRanges: [{ type: 'F-35I (Adir)', rangeKm: 1400 }, { type: "F-15I (Ra'am)", rangeKm: 1800 }] },
+      { id: 'hatzerim',    name: 'Hatzerim AB',    lat: 31.225, lon: 34.664, type: 'airbase', party: 'IL', country: 'Israel', strikeRanges: [{ type: 'F-16I (Sufa)', rangeKm: 1600 }] },
+      { id: 'ramat-david', name: 'Ramat David AB', lat: 32.665, lon: 35.179, type: 'airbase', party: 'IL', country: 'Israel', strikeRanges: [{ type: 'F-15I (Ra\'am)', rangeKm: 1800 }] },
     ],
     chokepoints: [
       { id: 'suez',  name: 'Suez Canal',   lat: 30.7,  lon: 32.3,  radius_km: 30 },

@@ -121,3 +121,36 @@ export function pruneOldIncidents(maxAgeDays = 30): void {
   const cutoff = new Date(Date.now() - maxAgeDays * 86_400_000).toISOString()
   getDb().prepare('DELETE FROM incidents WHERE timestamp < ?').run(cutoff)
 }
+
+// ── Nuclear site status (IAEA worker) ──────────────────────────────────────
+
+export function upsertNuclearSiteStatus(
+  siteId:       string,
+  conflictSlug: string,
+  name:         string,
+  status:       string,
+  notes:        string,
+): void {
+  getDb().prepare(`
+    INSERT INTO nuclear_site_status (site_id, conflict_slug, name, status, notes, updated_at)
+    VALUES (?, ?, ?, ?, ?, unixepoch())
+    ON CONFLICT(site_id) DO UPDATE SET
+      status     = excluded.status,
+      notes      = excluded.notes,
+      updated_at = excluded.updated_at
+  `).run(siteId, conflictSlug, name, status, notes)
+}
+
+interface NuclearStatusRow {
+  site_id:    string
+  status:     string
+  notes:      string | null
+  updated_at: number
+}
+
+export function getNuclearSiteStatuses(conflictSlug: string): { siteId: string; status: string; notes: string | null; updatedAt: number }[] {
+  const rows = getDb().prepare(
+    'SELECT site_id, status, notes, updated_at FROM nuclear_site_status WHERE conflict_slug = ?'
+  ).all(conflictSlug) as NuclearStatusRow[]
+  return rows.map(r => ({ siteId: r.site_id, status: r.status, notes: r.notes, updatedAt: r.updated_at }))
+}

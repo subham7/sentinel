@@ -9,9 +9,11 @@ import type { LayerState } from '@/components/map/TheaterMap'
 import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
 import IncidentFeed from '@/components/panels/IncidentFeed'
+import LayerControl from '@/components/map/LayerControl'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
 import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
 import { useIncidentSSE } from '@/hooks/useIncidentSSE'
+import { useNuclearStatus } from '@/hooks/useNuclearStatus'
 
 const TheaterMap = dynamic(
   () => import('@/components/map/TheaterMap'),
@@ -74,86 +76,6 @@ const VESSEL_TYPE_LABELS: Record<string, string> = {
   warship: 'WAR', tanker: 'TNK', cargo: 'CRG', fast_boat: 'FAB', submarine: 'SUB', unknown: '???',
 }
 
-// ── Layer control panel ────────────────────────────────────────────────────────
-
-interface LayerControlProps {
-  conflict: ConflictConfig
-  layers:   LayerState
-  onChange: (key: keyof LayerState, value: boolean) => void
-}
-
-function LayerControl({ conflict, layers, onChange }: LayerControlProps) {
-  const [open, setOpen] = useState(false)
-
-  const controls: { key: keyof LayerState; label: string; available: boolean }[] = [
-    { key: 'aircraft',    label: 'Aircraft',        available: true },
-    { key: 'vessels',     label: 'Vessels',         available: conflict.dataSources.ais.enabled },
-    { key: 'incidents',   label: 'Incidents',       available: true },
-    { key: 'heatmap',     label: 'Heat Map',        available: true },
-    { key: 'bases',       label: 'Military Bases',  available: conflict.overlays.bases.length > 0 },
-    { key: 'nuclear',     label: 'Nuclear Sites',   available: (conflict.overlays.nuclearSites?.length ?? 0) > 0 },
-    { key: 'sam',         label: 'SAM Coverage',    available: (conflict.overlays.samSites?.length ?? 0) > 0 },
-    { key: 'chokepoints', label: 'Chokepoints',     available: (conflict.overlays.chokepoints?.length ?? 0) > 0 },
-  ]
-
-  return (
-    <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, fontFamily: "'Share Tech Mono', monospace" }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '5px 10px',
-          background: 'var(--bg-elevated)', border: '1px solid var(--border-bright)',
-          borderRadius: 4, color: 'var(--text-secondary)',
-          fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer',
-        }}
-      >
-        ≡ LAYERS
-      </button>
-
-      {open && (
-        <div style={{
-          marginTop: 4, background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)', borderRadius: 4,
-          padding: '8px 0', minWidth: 170,
-        }}>
-          <div style={{
-            fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em',
-            textTransform: 'uppercase', padding: '0 12px 6px',
-            borderBottom: '1px solid var(--border)', marginBottom: 4,
-          }}>
-            Layer Toggles
-          </div>
-          {controls.map(({ key, label, available }) => (
-            <label key={key} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '5px 12px',
-              cursor: available ? 'pointer' : 'default', opacity: available ? 1 : 0.4,
-            }}>
-              <input
-                type="checkbox"
-                checked={layers[key]}
-                disabled={!available}
-                onChange={e => onChange(key, e.target.checked)}
-                style={{ accentColor: '#00b0ff', width: 12, height: 12 }}
-              />
-              <span style={{
-                fontSize: 10,
-                color: layers[key] ? 'var(--text-primary)' : 'var(--text-muted)',
-                letterSpacing: '0.06em',
-              }}>
-                {label}
-              </span>
-              {!available && (
-                <span style={{ fontSize: 8, color: 'var(--text-muted)', marginLeft: 'auto' }}>N/A</span>
-              )}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Track list / Bases panel (left sidebar) ───────────────────────────────────
 
@@ -622,15 +544,28 @@ export default function TheaterPage() {
 
   const conflict = getConflict(slug)
 
-  const [layers, setLayers] = useState<LayerState>({
-    aircraft:    true,
-    vessels:     true,
-    incidents:   true,
-    heatmap:     false,
-    bases:       true,
-    nuclear:     true,
-    sam:         true,
-    chokepoints: true,
+  const DEFAULT_LAYERS: LayerState = {
+    aircraft:      true,
+    vessels:       true,
+    incidents:     true,
+    heatmap:       false,
+    bases:         true,
+    nuclear:       true,
+    sam:           true,
+    shippingLanes: true,
+    chokepoints:   true,
+    strikeRanges:  false,
+  }
+
+  const [layers, setLayers] = useState<LayerState>(() => {
+    // Initialise from URL ?layers= param (client-side only)
+    if (typeof window === 'undefined') return DEFAULT_LAYERS
+    const raw = new URLSearchParams(window.location.search).get('layers')
+    if (!raw) return DEFAULT_LAYERS
+    const active = new Set(raw.split(','))
+    return Object.fromEntries(
+      Object.keys(DEFAULT_LAYERS).map(k => [k, active.has(k)])
+    ) as unknown as LayerState
   })
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null)
   const [selectedVesselId,   setSelectedVesselId]   = useState<string | null>(null)
@@ -639,12 +574,21 @@ export default function TheaterPage() {
   const { aircraft }                     = useAircraftWebSocket(slug)
   const { vessels }                      = useVesselWebSocket(slug)
   const { incidents, status: incStatus } = useIncidentSSE(slug)
+  const nuclearStatuses                  = useNuclearStatus(slug)
 
   const selectedAc = selectedAircraftId ? aircraft.find(a => a.icao24 === selectedAircraftId) ?? null : null
   const selectedVs = selectedVesselId   ? vessels.find(v => v.mmsi === selectedVesselId)      ?? null : null
 
   function handleLayerToggle(key: keyof LayerState, value: boolean) {
-    setLayers(prev => ({ ...prev, [key]: value }))
+    setLayers(prev => {
+      const next = { ...prev, [key]: value }
+      // Persist to URL
+      const active = Object.entries(next).filter(([, v]) => v).map(([k]) => k).join(',')
+      const url = new URL(window.location.href)
+      url.searchParams.set('layers', active)
+      window.history.replaceState(null, '', url.toString())
+      return next
+    })
   }
 
   if (!conflict) {
@@ -800,6 +744,7 @@ export default function TheaterPage() {
             aircraft={aircraft}
             vessels={vessels}
             incidents={incidents}
+            nuclearStatuses={nuclearStatuses}
             selectedId={selectedAircraftId}
             onPickAircraft={ac => setSelectedAircraftId(ac?.icao24 ?? null)}
             onPickVessel={v => setSelectedVesselId(v?.mmsi ?? null)}

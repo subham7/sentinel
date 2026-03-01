@@ -21,6 +21,7 @@ const DEFAULT_SOURCES: Source[] = [
   { id: 'gdelt',   label: 'GDELT',    status: 'fresh' },
   { id: 'acled',   label: 'ACLED',    status: 'fresh' },
   { id: 'telegram',label: 'TELEGRAM', status: 'fresh' },
+  { id: 'iaea',    label: 'IAEA',     status: 'fresh' },
 ]
 
 export default function DataFreshness({ sources = DEFAULT_SOURCES }: Props) {

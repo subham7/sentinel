@@ -82,3 +82,13 @@ CREATE TABLE IF NOT EXISTS data_freshness (
   last_status     TEXT,               -- 'fresh' | 'stale' | 'error'
   error_message   TEXT
 );
+
+CREATE TABLE IF NOT EXISTS nuclear_site_status (
+  site_id       TEXT PRIMARY KEY,
+  conflict_slug TEXT NOT NULL,
+  name          TEXT,
+  status        TEXT,        -- 'active' | 'suspected' | 'modified' | 'operational' | 'shutdown'
+  notes         TEXT,
+  source        TEXT DEFAULT 'iaea',
+  updated_at    INTEGER DEFAULT (unixepoch())
+);
