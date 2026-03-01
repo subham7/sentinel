@@ -119,11 +119,7 @@ function TrackList({
   })
 
   return (
-    <div style={{
-      width: 220, flexShrink: 0,
-      background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       {/* Tab header */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button style={tabStyle(tab === 'air')} onClick={() => setTab('air')}>
@@ -354,22 +350,11 @@ const SURGE_COLORS: Record<string, string> = {
 // ── Right sidebar: posture + nuclear watch ────────────────────────────────────
 
 function PosturePanel({
-  conflict, aircraft, vessels, incidents, incidentStatus, onFlyTo,
-  sitrep, sitrepLoading, sitrepPending,
-  convergenceAlerts, surgeAlerts, strikePackage,
+  conflict, aircraft, vessels,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
   vessels: Vessel[]
-  incidents: Incident[]
-  incidentStatus: 'connecting' | 'connected' | 'error'
-  onFlyTo: (lat: number, lon: number) => void
-  sitrep: import('@sentinel/shared').SitrepReport | null
-  sitrepLoading: boolean
-  sitrepPending: boolean
-  convergenceAlerts: ConvergenceAlert[]
-  surgeAlerts: SurgeAlert[]
-  strikePackage: boolean
 }) {
   const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
   const hasNuclear = (conflict.overlays.nuclearSites?.length ?? 0) > 0
@@ -383,15 +368,10 @@ function PosturePanel({
 
   return (
     <div style={{
-      width: 280, flexShrink: 0,
+      width: 260, flexShrink: 0,
       background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column', overflowY: 'auto',
     }}>
-      {/* ── Scrollable upper sections ───────────────────────────────────────────
-          flex: 1 1 0 + minHeight: 0 lets this shrink below content size so the
-          incident feed below always gets its guaranteed 300px slot.           */}
-      <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
-
       {/* Theater posture */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{
@@ -556,82 +536,134 @@ function PosturePanel({
         </div>
       )}
 
-      {/* Convergence alerts */}
-      {convergenceAlerts.length > 0 && (
-        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{
-            fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
-            textTransform: 'uppercase', marginBottom: 6,
-          }}>
-            ◉ Convergence ({convergenceAlerts.length})
-          </div>
-          {convergenceAlerts.slice(0, 3).map(alert => (
-            <div key={alert.cellId} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
-            }}>
-              <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
-                {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
-              </span>
-              <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
-                {alert.signals.map(s => s.toUpperCase().slice(0,2)).join('+')} ×{alert.entityCount}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+    </div>
+  )
+}
 
-      {/* Surge / strike package alerts */}
-      {(surgeAlerts.length > 0 || strikePackage) && (
-        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{
-            fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
-            textTransform: 'uppercase', marginBottom: 6,
-          }}>
-            ⚠ Surge Detection
-          </div>
-          {strikePackage && (
+// ── Left intel panel: tracks + convergence/surge + sitrep + chat + feed ──────
+
+function LeftIntelPanel({
+  conflict, aircraft, vessels, incidents, incidentStatus,
+  selectedAircraftId, selectedVesselId, onSelectAircraft, onSelectVessel, onFlyTo,
+  sitrep, sitrepLoading, sitrepPending,
+  convergenceAlerts, surgeAlerts, strikePackage, slug,
+}: {
+  conflict: ConflictConfig
+  aircraft: Aircraft[]
+  vessels: Vessel[]
+  incidents: Incident[]
+  incidentStatus: 'connecting' | 'connected' | 'error'
+  selectedAircraftId: string | null
+  selectedVesselId: string | null
+  onSelectAircraft: (id: string | null) => void
+  onSelectVessel: (id: string | null) => void
+  onFlyTo: (lat: number, lon: number) => void
+  sitrep: import('@sentinel/shared').SitrepReport | null
+  sitrepLoading: boolean
+  sitrepPending: boolean
+  convergenceAlerts: ConvergenceAlert[]
+  surgeAlerts: SurgeAlert[]
+  strikePackage: boolean
+  slug: string
+}) {
+  return (
+    <div style={{
+      width: 300, flexShrink: 0,
+      background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      {/* Track list — capped height so intel panels always get space */}
+      <div style={{
+        flexShrink: 0, maxHeight: 200,
+        display: 'flex', flexDirection: 'column',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <TrackList
+          conflict={conflict}
+          aircraft={aircraft}
+          vessels={vessels}
+          selectedAircraftId={selectedAircraftId}
+          selectedVesselId={selectedVesselId}
+          onSelectAircraft={onSelectAircraft}
+          onSelectVessel={onSelectVessel}
+        />
+      </div>
+
+      {/* Intelligence sections: scrollable, collapse to give incident feed space */}
+      <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
+
+        {/* Convergence alerts */}
+        {convergenceAlerts.length > 0 && (
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
             <div style={{
-              padding: '4px 8px', marginBottom: 4,
-              background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
-              fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
-              animation: 'pulse-opacity 1.5s ease-in-out infinite',
+              fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
+              textTransform: 'uppercase', marginBottom: 6,
             }}>
-              STRIKE PACKAGE DETECTED
+              ◉ Convergence ({convergenceAlerts.length})
             </div>
-          )}
-          {surgeAlerts.map(alert => {
-            const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
-            return (
-              <div key={alert.metric} style={{
+            {convergenceAlerts.slice(0, 3).map(alert => (
+              <div key={alert.cellId} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
               }}>
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                  {alert.metric.toUpperCase()} SURGE
+                <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
+                  {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
                 </span>
-                <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
-                  {alert.current} (μ={alert.mean}, z={alert.zScore})
+                <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
+                  {alert.signals.map(s => s.toUpperCase().slice(0, 2)).join('+')} ×{alert.entityCount}
                 </span>
               </div>
-            )
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {/* SITREP panel */}
-      <SitrepPanel
-        report={sitrep}
-        loading={sitrepLoading}
-        pending={sitrepPending}
-      />
+        {/* Surge / strike package */}
+        {(surgeAlerts.length > 0 || strikePackage) && (
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{
+              fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
+              textTransform: 'uppercase', marginBottom: 6,
+            }}>
+              ⚠ Surge Detection
+            </div>
+            {strikePackage && (
+              <div style={{
+                padding: '4px 8px', marginBottom: 4,
+                background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
+                fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
+                animation: 'pulse-opacity 1.5s ease-in-out infinite',
+              }}>
+                STRIKE PACKAGE DETECTED
+              </div>
+            )}
+            {surgeAlerts.map(alert => {
+              const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
+              return (
+                <div key={alert.metric} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                    {alert.metric.toUpperCase()} SURGE
+                  </span>
+                  <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
+                    {alert.current} (μ={alert.mean}, z={alert.zScore})
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
-      {/* Analyst chat */}
-      <AnalystChat slug={conflict.slug} />
+        {/* SITREP */}
+        <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
 
-      </div>{/* end scrollable upper sections */}
+        {/* Analyst Chat */}
+        <AnalystChat slug={slug} />
 
-      {/* ── Incident feed — pinned at bottom, always visible ─────────────────── */}
+      </div>
+
+      {/* Incident feed — pinned at bottom, always visible */}
       <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <IncidentFeed incidents={incidents} onFlyTo={onFlyTo} status={incidentStatus} />
       </div>
@@ -840,14 +872,24 @@ export default function TheaterPage() {
 
       {/* ── Main content ────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <TrackList
+        <LeftIntelPanel
           conflict={conflict}
           aircraft={aircraft}
           vessels={vessels}
+          incidents={incidents}
+          incidentStatus={incStatus}
           selectedAircraftId={selectedAircraftId}
           selectedVesselId={selectedVesselId}
           onSelectAircraft={setSelectedAircraftId}
           onSelectVessel={setSelectedVesselId}
+          onFlyTo={(lat, lon) => setFlyTo({ lat, lon })}
+          sitrep={sitrep}
+          sitrepLoading={sitrepLoading}
+          sitrepPending={sitrepPending}
+          convergenceAlerts={convergenceAlerts}
+          surgeAlerts={surgeAlerts}
+          strikePackage={strikePackage}
+          slug={slug}
         />
 
         {/* Map area */}
@@ -877,15 +919,6 @@ export default function TheaterPage() {
           conflict={conflict}
           aircraft={aircraft}
           vessels={vessels}
-          incidents={incidents}
-          incidentStatus={incStatus}
-          onFlyTo={(lat, lon) => setFlyTo({ lat, lon })}
-          sitrep={sitrep}
-          sitrepLoading={sitrepLoading}
-          sitrepPending={sitrepPending}
-          convergenceAlerts={convergenceAlerts}
-          surgeAlerts={surgeAlerts}
-          strikePackage={strikePackage}
         />
       </div>
 
