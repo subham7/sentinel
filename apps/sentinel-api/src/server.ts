@@ -10,10 +10,12 @@ loadDotenv({ path: resolve(fileURLToPath(import.meta.url), '../../../../.env') }
 import { ALL_CONFLICTS, getConflict } from '@sentinel/shared'
 import { getDb } from './db/index.js'
 import { cacheGet } from './services/cache.js'
-import { registerAircraftRoutes }  from './routes/aircraft.js'
-import { registerVesselRoutes }    from './routes/vessels.js'
-import { registerIncidentRoutes }  from './routes/incidents.js'
-import { registerNuclearRoutes }   from './routes/nuclear.js'
+import { registerAircraftRoutes }    from './routes/aircraft.js'
+import { registerVesselRoutes }      from './routes/vessels.js'
+import { registerIncidentRoutes }    from './routes/incidents.js'
+import { registerNuclearRoutes }     from './routes/nuclear.js'
+import { registerSitrepRoutes }      from './routes/sitrep.js'
+import { registerAnalystChatRoutes } from './routes/analyst-chat.js'
 import { getRecentIncidents }      from './db/queries.js'
 import { startWorkers } from './workers/index.js'
 
@@ -29,7 +31,7 @@ await app.register(websocket)
 
 app.get('/health', async () => ({
   status:    'ok',
-  phase:     4,
+  phase:     5,
   uptime:    process.uptime(),
   timestamp: new Date().toISOString(),
 }))
@@ -95,6 +97,8 @@ await registerVesselRoutes(app)
 
 await registerIncidentRoutes(app)
 await registerNuclearRoutes(app)
+await registerSitrepRoutes(app)
+await registerAnalystChatRoutes(app)
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/theater', async (req, reply) => {
   const conflict = getConflict(req.params.slug)
@@ -137,5 +141,5 @@ startWorkers()
 
 const port = Number(process.env.PORT ?? 3001)
 await app.listen({ port, host: '0.0.0.0' })
-console.log(`SENTINEL API — Phase 3 — http://localhost:${port}`)
+console.log(`SENTINEL API — Phase 5 — http://localhost:${port}`)
 console.log(`Conflicts: ${ALL_CONFLICTS.map(c => c.slug).join(', ')}`)

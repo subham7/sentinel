@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { getConflict } from '@sentinel/shared'
@@ -9,11 +9,18 @@ import type { LayerState } from '@/components/map/TheaterMap'
 import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
 import IncidentFeed from '@/components/panels/IncidentFeed'
+import SitrepPanel from '@/components/panels/SitrepPanel'
+import AnalystChat from '@/components/panels/AnalystChat'
 import LayerControl from '@/components/map/LayerControl'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
 import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
 import { useIncidentSSE } from '@/hooks/useIncidentSSE'
 import { useNuclearStatus } from '@/hooks/useNuclearStatus'
+import { useSitrepReport } from '@/hooks/useSitrepReport'
+import { detectConvergence } from '@/services/signal-aggregator'
+import type { ConvergenceAlert } from '@/services/signal-aggregator'
+import { detectSurge, detectStrikePackage } from '@/services/military-surge'
+import type { SurgeAlert } from '@/services/military-surge'
 
 const TheaterMap = dynamic(
   () => import('@/components/map/TheaterMap'),
@@ -338,10 +345,18 @@ function VesselPopup({ v, onClose }: { v: Vessel; onClose: () => void }) {
   )
 }
 
+// ── Surge / convergence severity color ────────────────────────────────────────
+
+const SURGE_COLORS: Record<string, string> = {
+  elevated: '#eab308', high: '#f97316', critical: '#ef4444',
+}
+
 // ── Right sidebar: posture + nuclear watch ────────────────────────────────────
 
 function PosturePanel({
   conflict, aircraft, vessels, incidents, incidentStatus, onFlyTo,
+  sitrep, sitrepLoading, sitrepPending,
+  convergenceAlerts, surgeAlerts, strikePackage,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
@@ -349,6 +364,12 @@ function PosturePanel({
   incidents: Incident[]
   incidentStatus: 'connecting' | 'connected' | 'error'
   onFlyTo: (lat: number, lon: number) => void
+  sitrep: import('@sentinel/shared').SitrepReport | null
+  sitrepLoading: boolean
+  sitrepPending: boolean
+  convergenceAlerts: ConvergenceAlert[]
+  surgeAlerts: SurgeAlert[]
+  strikePackage: boolean
 }) {
   const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
   const hasNuclear = (conflict.overlays.nuclearSites?.length ?? 0) > 0
@@ -530,6 +551,79 @@ function PosturePanel({
         </div>
       )}
 
+      {/* Convergence alerts */}
+      {convergenceAlerts.length > 0 && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
+            textTransform: 'uppercase', marginBottom: 6,
+          }}>
+            ◉ Convergence ({convergenceAlerts.length})
+          </div>
+          {convergenceAlerts.slice(0, 3).map(alert => (
+            <div key={alert.cellId} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}>
+              <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
+                {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
+              </span>
+              <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
+                {alert.signals.map(s => s.toUpperCase().slice(0,2)).join('+')} ×{alert.entityCount}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Surge / strike package alerts */}
+      {(surgeAlerts.length > 0 || strikePackage) && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
+            textTransform: 'uppercase', marginBottom: 6,
+          }}>
+            ⚠ Surge Detection
+          </div>
+          {strikePackage && (
+            <div style={{
+              padding: '4px 8px', marginBottom: 4,
+              background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
+              fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
+              animation: 'pulse-opacity 1.5s ease-in-out infinite',
+            }}>
+              STRIKE PACKAGE DETECTED
+            </div>
+          )}
+          {surgeAlerts.map(alert => {
+            const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
+            return (
+              <div key={alert.metric} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+              }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                  {alert.metric.toUpperCase()} SURGE
+                </span>
+                <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
+                  {alert.current} (μ={alert.mean}, z={alert.zScore})
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* SITREP panel */}
+      <SitrepPanel
+        report={sitrep}
+        loading={sitrepLoading}
+        pending={sitrepPending}
+      />
+
+      {/* Analyst chat */}
+      <AnalystChat slug={conflict.slug} />
+
       {/* Incident feed */}
       <IncidentFeed incidents={incidents} onFlyTo={onFlyTo} status={incidentStatus} />
     </div>
@@ -575,6 +669,17 @@ export default function TheaterPage() {
   const { vessels }                      = useVesselWebSocket(slug)
   const { incidents, status: incStatus } = useIncidentSSE(slug)
   const nuclearStatuses                  = useNuclearStatus(slug)
+  const { report: sitrep, loading: sitrepLoading, pending: sitrepPending } = useSitrepReport(slug)
+
+  const convergenceAlerts = useMemo(
+    () => detectConvergence(aircraft, vessels, incidents),
+    [aircraft, vessels, incidents],
+  )
+  const surgeAlerts = useMemo(
+    () => detectSurge(slug, aircraft, vessels),
+    [slug, aircraft, vessels],
+  )
+  const strikePackage = useMemo(() => detectStrikePackage(aircraft), [aircraft])
 
   const selectedAc = selectedAircraftId ? aircraft.find(a => a.icao24 === selectedAircraftId) ?? null : null
   const selectedVs = selectedVesselId   ? vessels.find(v => v.mmsi === selectedVesselId)      ?? null : null
@@ -766,6 +871,12 @@ export default function TheaterPage() {
           incidents={incidents}
           incidentStatus={incStatus}
           onFlyTo={(lat, lon) => setFlyTo({ lat, lon })}
+          sitrep={sitrep}
+          sitrepLoading={sitrepLoading}
+          sitrepPending={sitrepPending}
+          convergenceAlerts={convergenceAlerts}
+          surgeAlerts={surgeAlerts}
+          strikePackage={strikePackage}
         />
       </div>
 

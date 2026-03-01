@@ -3,7 +3,7 @@
 Multi-conflict geospatial intelligence platform. Tracks military aircraft, naval vessels,
 and OSINT incidents across active conflict theaters in real time.
 
-**Current status:** Phase 4 ✅ (Phase 5 upcoming)
+**Current status:** Phase 5 ✅ (Phase 6 upcoming)
 
 ---
 
@@ -773,17 +773,21 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 ---
 
-### Phase 5 — AI Intelligence Layer ⏳ UPCOMING
+### Phase 5 — AI Intelligence Layer ✅ COMPLETE
 
 **Goal:** Convergence alerts, surge detection, per-conflict AI sitrep, analyst chat.
 
 **Tasks:**
-- `signal-aggregator.ts` (browser): 0.5°×0.5° grid cells, convergence alert at 3+ signal types
-- `military-surge.ts` (browser): Welford streaming mean/variance, 30-day localStorage baseline,
+- [x] `signal-aggregator.ts` (browser): 0.5°×0.5° grid cells, convergence alert at 3+ signal types
+- [x] `military-surge.ts` (browser): Welford streaming mean/variance, 30-day localStorage baseline,
   Z-score thresholds 1.5/2.0/3.0, strike package pattern matching
-- `sitrep.worker.ts`: hourly cron, `llama-3.3-70b-versatile`, data scoped to conflict
-- `AnalystChat.tsx`: Claude with tool-use, tools scoped to conflict bbox:
+- [x] `sitrep.worker.ts`: hourly cron, `llama-3.3-70b-versatile`, data scoped to conflict
+- [x] `AnalystChat.tsx`: Claude with tool-use, tools scoped to conflict:
   `query_incidents`, `get_aircraft_by_type`, `get_vessel_status`, `get_theater_posture`
+- [x] `SitrepPanel.tsx`: threat level badge, summary, key events, force posture
+- [x] `useSitrepReport.ts`: fetch + 60-min refetch hook
+- [x] `routes/sitrep.ts`: GET /api/conflicts/:slug/sitrep
+- [x] `routes/analyst-chat.ts`: POST with Claude tool-use loop (max 5 iterations)
 
 ---
 

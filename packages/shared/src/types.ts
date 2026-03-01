@@ -84,3 +84,13 @@ export interface DataSource {
   status: DataSourceStatus
   latency_ms?: number
 }
+
+export interface SitrepReport {
+  slug:           string
+  summary:        string          // 2–3 AI sentences
+  threat_level:   'normal' | 'elevated' | 'high' | 'critical'
+  key_events:     string[]        // 3–5 bullet points
+  force_posture:  string          // 1 sentence
+  generated_at:   number          // unix ms
+  model:          string          // e.g. 'llama-3.3-70b-versatile'
+}
