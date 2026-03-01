@@ -131,7 +131,7 @@ export const US_IRAN: ConflictConfig = {
   map: {
     center: [51.0, 27.0],
     zoom: 5,
-    bounds: { latMin: -5, latMax: 65, lonMin: -15, lonMax: 90 },
+    bounds: { latMin: -20, latMax: 75, lonMin: -180, lonMax: 90 },
     theaters: [
       { id: 'persian_gulf',     name: 'Persian Gulf',     bounds: { latMin: 23, latMax: 30, lonMin: 47, lonMax: 57 } },
       { id: 'strait_of_hormuz', name: 'Strait of Hormuz', bounds: { latMin: 25, latMax: 27, lonMin: 55, lonMax: 58 } },
@@ -158,6 +158,10 @@ export const US_IRAN: ConflictConfig = {
         { lat: 37.0, lon: 28.0, radiusNm: 300 },   // Eastern Med / Turkey (İncirlik, Akrotiri)
         { lat: 49.5, lon: 10.0, radiusNm: 300 },   // Central Europe / Germany (Ramstein, Spangdahlem)
         { lat: 51.0, lon: -1.0, radiusNm: 300 },   // UK / Western Europe (RAF Fairford B-52s, USAFE)
+        // ── CONUS / North America ─────────────────────────────────────────
+        { lat: 38.0, lon: -97.0, radiusNm: 400 },  // Central CONUS (Whiteman, McConnell, Tinker)
+        { lat: 44.0, lon: -120.0, radiusNm: 400 }, // Pacific Northwest / Mountain West (Fairchild, Malmstrom)
+        { lat: 33.0, lon: -117.0, radiusNm: 300 }, // Southern California (Edwards, March, Miramar)
       ],
     },
     ais: {
