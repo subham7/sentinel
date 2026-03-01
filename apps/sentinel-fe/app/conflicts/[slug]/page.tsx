@@ -387,6 +387,11 @@ function PosturePanel({
       background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
+      {/* ── Scrollable upper sections ───────────────────────────────────────────
+          flex: 1 1 0 + minHeight: 0 lets this shrink below content size so the
+          incident feed below always gets its guaranteed 300px slot.           */}
+      <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
+
       {/* Theater posture */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{
@@ -624,8 +629,12 @@ function PosturePanel({
       {/* Analyst chat */}
       <AnalystChat slug={conflict.slug} />
 
-      {/* Incident feed */}
-      <IncidentFeed incidents={incidents} onFlyTo={onFlyTo} status={incidentStatus} />
+      </div>{/* end scrollable upper sections */}
+
+      {/* ── Incident feed — pinned at bottom, always visible ─────────────────── */}
+      <div style={{ flex: '0 0 300px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <IncidentFeed incidents={incidents} onFlyTo={onFlyTo} status={incidentStatus} />
+      </div>
     </div>
   )
 }
