@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.git
+.env
+apps/sentinel-fe
+docs
