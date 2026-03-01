@@ -3,7 +3,7 @@
 Multi-conflict geospatial intelligence platform. Tracks military aircraft, naval vessels,
 and OSINT incidents across active conflict theaters in real time.
 
-**Current status:** Phase 3 ✅ (Phase 4 upcoming)
+**Current status:** Phase 4 ✅ (Phase 5 upcoming)
 
 ---
 
@@ -759,17 +759,17 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 ---
 
-### Phase 4 — Geographic Intelligence Overlays ⏳ UPCOMING
+### Phase 4 — Geographic Intelligence Overlays ✅ COMPLETE
 
 **Goal:** All geographic overlays config-driven, fully toggleable.
 
 **Tasks:**
-- All overlays render from `conflict.overlays` — zero hardcoding in components
-- `SamRingsLayer.tsx`: `@turf/circle` per site, `GeoJsonLayer`, semi-transparent
-- US base strike range rings: render on base hover, multi-ring per aircraft type
-- Nuclear sites: IAEA RSS feed status updates (weekly), detail popup per site
-- Shipping lane animation: animated dash pattern
-- Layer control: grouped tree UI, URL-encoded state, keyboard shortcut `L`
+- [x] All overlays render from `conflict.overlays` — zero hardcoding in components
+- [x] Strike range rings: render on base hover via `addStrikeRings`/`removeStrikeRings`, multi-ring per aircraft type, cleanup when toggle off
+- [x] Nuclear sites: IAEA RSS feed status updates (weekly worker), detail popup per site, live status from `/api/conflicts/:slug/nuclear`
+- [x] Shipping lane animation: 14 pre-computed dasharray sequences cycled at ~12fps via requestAnimationFrame
+- [x] LayerControl: grouped tree UI (LIVE TRACKS / INTEL / GEOGRAPHY / NUCLEAR), URL-encoded state, keyboard shortcut `L`
+- [x] Config-driven party colors: `buildPartyColorMap(conflict)` replaces hardcoded PARTY_COLORS dict
 
 ---
 
