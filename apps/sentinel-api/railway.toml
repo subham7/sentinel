@@ -1,2 +1,2 @@
 [deploy]
-watchPatterns = ["apps/sentinel-api/**", "packages/shared/**"]
+watchPatterns = ["apps/sentinel-api/**", "packages/**"]
