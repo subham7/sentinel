@@ -155,19 +155,19 @@ export const US_IRAN: ConflictConfig = {
         { lat: 11.0, lon: 43.0, radiusNm: 250 },   // Djibouti / Horn of Africa (Camp Lemonnier)
         { lat: 34.0, lon: 68.0, radiusNm: 250 },   // Pakistan / Afghanistan / Central Asia
         // ── EUCOM / Eastern Med ───────────────────────────────────────────
-        { lat: 37.0, lon: 28.0, radiusNm: 300 },   // Eastern Med / Turkey (İncirlik, Akrotiri)
-        { lat: 49.5, lon: 10.0, radiusNm: 300 },   // Central Europe / Germany (Ramstein, Spangdahlem)
-        { lat: 51.0, lon: -1.0, radiusNm: 300 },   // UK / Western Europe (RAF Fairford B-52s, USAFE)
+        { lat: 37.0, lon: 28.0, radiusNm: 250 },   // Eastern Med / Turkey (İncirlik, Akrotiri)
+        { lat: 49.5, lon: 10.0, radiusNm: 250 },   // Central Europe / Germany (Ramstein, Spangdahlem)
+        { lat: 51.0, lon: -1.0, radiusNm: 250 },   // UK / Western Europe (RAF Fairford B-52s, USAFE)
         // ── CONUS / North America ─────────────────────────────────────────
-        { lat: 38.0, lon: -97.0,  radiusNm: 400 }, // Central CONUS (Whiteman, McConnell, Tinker, Barksdale)
-        { lat: 44.0, lon: -120.0, radiusNm: 400 }, // Pacific NW / Mountain West (Fairchild, Malmstrom)
-        { lat: 33.0, lon: -117.0, radiusNm: 300 }, // Southern California (Edwards, March, Miramar)
-        { lat: 41.0, lon: -74.0,  radiusNm: 400 }, // Northeast CONUS (Andrews, Langley, McGuire, Stewart)
-        { lat: 30.0, lon: -85.0,  radiusNm: 400 }, // Southeast CONUS (Eglin, Tyndall, Moody, Shaw)
+        { lat: 38.0, lon: -97.0,  radiusNm: 250 }, // Central CONUS (Whiteman, McConnell, Tinker, Barksdale)
+        { lat: 44.0, lon: -120.0, radiusNm: 250 }, // Pacific NW / Mountain West (Fairchild, Malmstrom)
+        { lat: 33.0, lon: -117.0, radiusNm: 250 }, // Southern California (Edwards, March, Miramar)
+        { lat: 41.0, lon: -74.0,  radiusNm: 250 }, // Northeast CONUS (Andrews, Langley, McGuire, Stewart)
+        { lat: 30.0, lon: -85.0,  radiusNm: 250 }, // Southeast CONUS (Eglin, Tyndall, Moody, Shaw)
         // ── US Pacific / Overseas ─────────────────────────────────────────
-        { lat: 64.0, lon: -153.0, radiusNm: 400 }, // Alaska (Elmendorf-Richardson, Eielson AFB)
-        { lat: 21.0, lon: -157.0, radiusNm: 300 }, // Hawaii (Hickam/JBPHH, Kaneohe Bay MCAS)
-        { lat: 13.5, lon: 144.8,  radiusNm: 300 }, // Guam (Andersen AFB — B-52 forward deployments)
+        { lat: 64.0, lon: -153.0, radiusNm: 250 }, // Alaska (Elmendorf-Richardson, Eielson AFB)
+        { lat: 21.0, lon: -157.0, radiusNm: 250 }, // Hawaii (Hickam/JBPHH, Kaneohe Bay MCAS)
+        { lat: 13.5, lon: 144.8,  radiusNm: 250 }, // Guam (Andersen AFB — B-52 forward deployments)
         { lat: -7.3, lon: 72.4,   radiusNm: 250 }, // Diego Garcia (CENTCOM bomber hub — B-2, B-52)
       ],
     },
