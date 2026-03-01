@@ -36,6 +36,23 @@ export interface LayerState {
   shippingLanes: boolean
   chokepoints:   boolean
   strikeRanges:  boolean
+  countries:     boolean
+}
+
+// ── Natural Earth 110m country GeoJSON (module-level cache) ───────────────────
+
+const NE_110M_URL = 'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_110m_admin_0_countries.geojson'
+let neCache: GeoJSON.FeatureCollection | null = null
+let neFetchPromise: Promise<GeoJSON.FeatureCollection> | null = null
+
+function fetchNECountries(): Promise<GeoJSON.FeatureCollection> {
+  if (neCache) return Promise.resolve(neCache)
+  if (!neFetchPromise) {
+    neFetchPromise = fetch(NE_110M_URL)
+      .then(r => r.json() as Promise<GeoJSON.FeatureCollection>)
+      .then(data => { neCache = data; return data })
+  }
+  return neFetchPromise
 }
 
 const SEV_COLORS: Record<number, string> = {
@@ -346,6 +363,12 @@ export default function TheaterMap({
     const vis = visible ? 'visible' : 'none'
     if (map.getLayer('shipping-lanes'))      map.setLayoutProperty('shipping-lanes',      'visibility', vis)
     if (map.getLayer('shipping-lanes-glow')) map.setLayoutProperty('shipping-lanes-glow', 'visibility', vis)
+  }, [])
+
+  const applyCountriesVisibility = useCallback((map: maplibregl.Map, visible: boolean) => {
+    const vis = visible ? 'visible' : 'none'
+    if (map.getLayer('country-highlights-fill'))    map.setLayoutProperty('country-highlights-fill',    'visibility', vis)
+    if (map.getLayer('country-highlights-outline')) map.setLayoutProperty('country-highlights-outline', 'visibility', vis)
   }, [])
 
   // ── Mount map ────────────────────────────────────────────────────────────────
@@ -761,6 +784,54 @@ export default function TheaterMap({
       applyMarkerVisibility(map, layersRef.current)
       applySamVisibility(map, layersRef.current.sam)
 
+      // ── Country highlights (async fetch, added after load) ────
+      const highlights = conflict.overlays.countryHighlights ?? []
+      if (highlights.length > 0) {
+        const iso3Set     = new Set(highlights.map(h => h.iso3))
+        const colorLookup = buildPartyColorMap(conflict)
+        colorLookup['NEUTRAL'] = '#94a3b8'
+        const iso3ToColor: Record<string, string> = {}
+        for (const h of highlights) {
+          iso3ToColor[h.iso3] = colorLookup[h.party] ?? '#94a3b8'
+        }
+
+        void fetchNECountries().then(allCountries => {
+          if (mapRef.current !== map) return     // map unmounted — abort
+          if (map.getSource('country-highlights')) return  // already added
+
+          const filtered: GeoJSON.Feature[] = allCountries.features
+            .filter(f => {
+              const iso = (f.properties?.['ISO_A3'] ?? f.properties?.['ADM0_A3']) as string | undefined
+              return iso != null && iso3Set.has(iso)
+            })
+            .map(f => {
+              const iso = (f.properties!['ISO_A3'] ?? f.properties!['ADM0_A3']) as string
+              return {
+                ...f,
+                properties: { ...f.properties, _color: iso3ToColor[iso] ?? '#94a3b8' },
+              }
+            })
+
+          map.addSource('country-highlights', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: filtered },
+          })
+
+          // Insert BELOW aircraft-trails so countries stay behind track layers
+          const belowLayer = map.getLayer('aircraft-trails') ? 'aircraft-trails' : undefined
+          map.addLayer({
+            id: 'country-highlights-fill', type: 'fill', source: 'country-highlights',
+            layout: { visibility: layersRef.current.countries ? 'visible' : 'none' },
+            paint: { 'fill-color': ['get', '_color'], 'fill-opacity': 0.12 },
+          }, belowLayer)
+          map.addLayer({
+            id: 'country-highlights-outline', type: 'line', source: 'country-highlights',
+            layout: { visibility: layersRef.current.countries ? 'visible' : 'none' },
+            paint: { 'line-color': ['get', '_color'], 'line-opacity': 0.5, 'line-width': 1.5 },
+          }, belowLayer)
+        }).catch(() => { /* Non-fatal if CDN unavailable */ })
+      }
+
       // Signal React that the map + all sources are ready
       setMapLoaded(true)
     })
@@ -889,7 +960,8 @@ export default function TheaterMap({
     applyVesselVisibility(map, layers.vessels)
     applyIncidentVisibility(map, layers.incidents, layers.heatmap)
     applyShippingLaneVisibility(map, layers.shippingLanes)
-  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility])
+    applyCountriesVisibility(map, layers.countries)
+  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility, applyCountriesVisibility])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

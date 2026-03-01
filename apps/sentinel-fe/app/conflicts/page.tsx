@@ -93,7 +93,7 @@ export default function ConflictsPage() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: 'calc(100vh - 25px)',
+      height: '100vh',
       background: 'var(--bg-base)', overflow: 'hidden',
     }}>
       {/* ── Header ──────────────────────────────────────────── */}

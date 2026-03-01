@@ -15,92 +15,6 @@ const COLORS = {
   white: "#e8f5e9",
 };
 
-// Middle East SVG coordinates (simplified)
-const COUNTRIES = [
-  { id: "iran", name: "IRAN", path: "M 420,120 L 480,100 L 540,110 L 570,140 L 580,180 L 560,220 L 520,250 L 480,260 L 440,240 L 410,210 L 400,170 Z", fill: "#1a0a0a", stroke: "#ff1744" },
-  { id: "iraq", name: "IRAQ", path: "M 320,130 L 390,120 L 420,120 L 410,210 L 380,230 L 340,220 L 310,190 L 300,160 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "saudi", name: "SAUDI ARABIA", path: "M 280,220 L 340,220 L 380,230 L 410,210 L 440,240 L 450,290 L 430,360 L 380,380 L 310,370 L 270,330 L 260,280 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "uae", name: "UAE", path: "M 480,260 L 520,250 L 540,270 L 530,300 L 500,310 L 475,290 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "qatar", name: "QATAR", path: "M 450,290 L 470,285 L 475,300 L 460,310 L 450,300 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "kuwait", name: "KUWAIT", path: "M 380,190 L 400,185 L 405,200 L 390,210 L 378,205 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "oman", name: "OMAN", path: "M 520,250 L 580,180 L 620,220 L 610,280 L 580,320 L 540,340 L 530,300 L 540,270 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "yemen", name: "YEMEN", path: "M 310,370 L 380,380 L 430,360 L 450,380 L 430,420 L 350,430 L 290,410 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "turkey", name: "TURKEY", path: "M 260,60 L 380,50 L 420,70 L 420,100 L 390,120 L 320,130 L 270,110 L 250,85 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "syria", name: "SYRIA", path: "M 320,100 L 390,90 L 420,100 L 420,120 L 390,120 L 320,130 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "jordan", name: "JORDAN", path: "M 300,140 L 320,130 L 320,140 L 310,190 L 285,200 L 280,165 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "israel", name: "ISRAEL", path: "M 282,138 L 296,135 L 298,155 L 285,160 L 281,148 Z", fill: "#0a0f0a", stroke: "#00b0ff" },
-  { id: "egypt", name: "EGYPT", path: "M 200,140 L 280,130 L 285,200 L 260,280 L 210,280 L 195,200 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-  { id: "pakistan", name: "PAKISTAN", path: "M 580,100 L 660,90 L 690,130 L 680,180 L 640,200 L 580,180 L 570,140 Z", fill: "#0a0f0a", stroke: "#1a2a1a" },
-];
-
-const BASES = [
-  { id: "al_udeid", name: "Al Udeid AB", x: 455, y: 292, type: "US", country: "Qatar" },
-  { id: "al_dhafra", name: "Al Dhafra AB", x: 505, y: 285, type: "US", country: "UAE" },
-  { id: "fifth_fleet", name: "5th Fleet HQ", x: 445, y: 305, type: "US", country: "Bahrain" },
-  { id: "incirlik", name: "Incirlik AB", x: 315, y: 72, type: "NATO", country: "Turkey" },
-  { id: "tehran", name: "Tehran", x: 490, y: 145, type: "IR", country: "Iran" },
-  { id: "isfahan", name: "Isfahan AB", x: 490, y: 185, type: "IR", country: "Iran" },
-  { id: "bandar", name: "Bandar Abbas", x: 530, y: 255, type: "IR", country: "Iran" },
-  { id: "bushehr", name: "Bushehr", x: 465, y: 225, type: "IR", country: "Iran" },
-];
-
-const INCIDENT_TEMPLATES = [
-  { type: "AIRSPACE", sev: "WARN", msg: "Iranian F-14 intercept near Strait of Hormuz", loc: "Persian Gulf" },
-  { type: "NAVAL", sev: "HIGH", msg: "IRGC fast boat swarm detected near USS {ship}", loc: "Strait of Hormuz" },
-  { type: "CYBER", sev: "WARN", msg: "Anomalous network activity on SCADA systems", loc: "Natanz, Iran" },
-  { type: "MISSILE", sev: "CRIT", msg: "Ballistic missile launch detected from western Iran", loc: "Kermanshah Province" },
-  { type: "INTEL", sev: "INFO", msg: "Commercial satellite imagery shows increased activity at Fordow facility", loc: "Fordow, Iran" },
-  { type: "DRONE", sev: "HIGH", msg: "Shahed-136 drone swarm detected heading southwest", loc: "Iraq-Iran border" },
-  { type: "DIPLOM", sev: "INFO", msg: "IAEA inspectors denied access to Natanz enrichment site", loc: "Vienna / Tehran" },
-  { type: "ECON", sev: "WARN", msg: "Iranian oil tanker detected disabling AIS transponder", loc: "Gulf of Oman" },
-  { type: "AIRSPACE", sev: "INFO", msg: "US E-8C JSTARS detected over eastern Saudi Arabia", loc: "Saudi Arabia" },
-  { type: "NAVAL", sev: "WARN", msg: "Iranian submarine departed Bandar Abbas naval base", loc: "Bandar Abbas" },
-  { type: "PROXY", sev: "HIGH", msg: "Hezbollah rocket barrage from southern Lebanon", loc: "Northern Israel" },
-  { type: "NUCLEAR", sev: "CRIT", msg: "Enrichment levels at Fordow exceed 60% threshold", loc: "Fordow, Iran" },
-  { type: "INTEL", sev: "INFO", msg: "US B-52H bombers depart Diego Garcia on patrol mission", loc: "Indian Ocean" },
-  { type: "AIRSPACE", sev: "WARN", msg: "Iranian air defense radar tracking detected, high emission", loc: "Bushehr Province" },
-  { type: "ECON", sev: "INFO", msg: "Brent crude spike +4.2% on strait closure fears", loc: "Global Markets" },
-];
-
-const SHIPS = ["USS Abraham Lincoln", "USS Bataan", "USS Laboon", "USS Carney", "USS Gerald Ford"];
-const AIRCRAFT_TYPES = ["F-22A", "F-35A", "B-52H", "KC-135", "E-3 Sentry", "RQ-4 Global Hawk", "MQ-9 Reaper", "P-8 Poseidon", "RC-135V", "F-16C"];
-const IR_AIRCRAFT = ["F-14A", "Su-35", "MiG-29", "F-4E", "Shahed-129", "Mohajer-6", "F-7M"];
-
-function generateAircraft(id, side) {
-  const isUS = side === "US";
-  const types = isUS ? AIRCRAFT_TYPES : IR_AIRCRAFT;
-  const type = types[Math.floor(Math.random() * types.length)];
-
-  const startBase = isUS
-    ? BASES.filter(b => b.type === "US")[Math.floor(Math.random() * 3)]
-    : BASES.filter(b => b.type === "IR")[Math.floor(Math.random() * 4)];
-
-  // random direction
-  const angle = Math.random() * Math.PI * 2;
-  return {
-    id,
-    callsign: isUS
-      ? `${["HAWK", "EAGLE", "VIPER", "GHOST", "BONE"][Math.floor(Math.random() * 5)]}${Math.floor(10 + Math.random() * 89)}`
-      : `IR-${Math.floor(100 + Math.random() * 900)}`,
-    type,
-    side,
-    x: startBase.x + (Math.random() - 0.5) * 60,
-    y: startBase.y + (Math.random() - 0.5) * 60,
-    vx: (Math.random() - 0.5) * 0.8,
-    vy: (Math.random() - 0.5) * 0.8,
-    alt: Math.floor(15000 + Math.random() * 45000),
-    speed: Math.floor(300 + Math.random() * 900),
-    trail: [],
-    active: true,
-  };
-}
-
-function initAircraft() {
-  const craft = [];
-  for (let i = 0; i < 8; i++) craft.push(generateAircraft(`us-${i}`, "US"));
-  for (let i = 0; i < 6; i++) craft.push(generateAircraft(`ir-${i}`, "IR"));
-  return craft;
-}
 
 function getSevColor(sev) {
   return { CRIT: COLORS.red, HIGH: "#ff6d00", WARN: COLORS.amber, INFO: COLORS.green }[sev] || COLORS.text;
@@ -194,11 +108,6 @@ export default function Dashboard() {
         .ac-dot { cursor: pointer; transition: r 0.2s; }
         .ac-dot:hover { r: 5; }
       `}</style>
-
-      {/* CLASSIFICATION BANNER */}
-      <div style={{ background: COLORS.red, color: "#fff", textAlign: "center", fontSize: 11, padding: "2px 0", letterSpacing: 4, fontFamily: "'Orbitron', monospace", fontWeight: 700 }}>
-        ██ UNCLASSIFIED // FOR DEMONSTRATION PURPOSES ONLY // SIMULATED DATA ██
-      </div>
 
       {/* HEADER */}
       <div style={{

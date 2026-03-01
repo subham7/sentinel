@@ -28,6 +28,7 @@ function buildGroups(conflict: ConflictConfig): Group[] {
     {
       label: 'GEOGRAPHY',
       items: [
+        { key: 'countries',     label: 'Countries',       available: (conflict.overlays.countryHighlights?.length ?? 0) > 0 },
         { key: 'bases',         label: 'Military Bases',  available: conflict.overlays.bases.length > 0 },
         { key: 'sam',           label: 'SAM Coverage',    available: (conflict.overlays.samSites?.length ?? 0) > 0 },
         { key: 'shippingLanes', label: 'Shipping Lanes',  available: (conflict.overlays.shippingLanes?.length ?? 0) > 0 },

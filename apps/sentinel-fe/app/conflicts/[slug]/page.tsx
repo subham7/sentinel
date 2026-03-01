@@ -716,6 +716,7 @@ export default function TheaterPage() {
     shippingLanes: true,
     chokepoints:   true,
     strikeRanges:  false,
+    countries:     true,
   }
 
   const [layers, setLayers] = useState<LayerState>(() => {
@@ -771,7 +772,7 @@ export default function TheaterPage() {
   if (!conflict) {
     return (
       <div style={{
-        display: 'flex', height: 'calc(100vh - 25px)',
+        display: 'flex', height: '100vh',
         alignItems: 'center', justifyContent: 'center',
         flexDirection: 'column', gap: 16,
         background: 'var(--bg-base)', fontFamily: "'Share Tech Mono', monospace",
@@ -794,7 +795,7 @@ export default function TheaterPage() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: 'calc(100vh - 25px)',
+      height: '100vh',
       background: 'var(--bg-base)', overflow: 'hidden',
     }}>
       {/* ── Theater header ──────────────────────────────────── */}

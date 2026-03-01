@@ -103,6 +103,7 @@ export interface ConflictConfig {
     samSites?: SamSite[]
     shippingLanes?: ShippingLane[]
     chokepoints?: Chokepoint[]
+    countryHighlights?: { iso3: string; party: string }[]
   }
 
   card: {
@@ -217,6 +218,18 @@ export const US_IRAN: ConflictConfig = {
       { id: 'hormuz',      name: 'Strait of Hormuz', lat: 26.5, lon: 56.3, radius_km: 50 },
       { id: 'bab-mandeb',  name: 'Bab el-Mandeb',    lat: 12.6, lon: 43.3, radius_km: 40 },
     ],
+    countryHighlights: [
+      { iso3: 'USA', party: 'US'  },
+      { iso3: 'IRN', party: 'IR'  },
+      { iso3: 'ISR', party: 'IL'  },
+      { iso3: 'JOR', party: 'GCC' },
+      { iso3: 'SAU', party: 'GCC' },
+      { iso3: 'QAT', party: 'US'  },
+      { iso3: 'ARE', party: 'US'  },
+      { iso3: 'OMN', party: 'GCC' },
+      { iso3: 'IRQ', party: 'GCC' },
+      { iso3: 'BHR', party: 'US'  },
+    ],
   },
   card: {
     accentColor: '#ef4444',
@@ -287,6 +300,14 @@ export const ISRAEL_GAZA: ConflictConfig = {
     chokepoints: [
       { id: 'suez',  name: 'Suez Canal',   lat: 30.7,  lon: 32.3,  radius_km: 30 },
       { id: 'aqaba', name: 'Gulf of Aqaba', lat: 29.5, lon: 34.9,  radius_km: 25 },
+    ],
+    countryHighlights: [
+      { iso3: 'ISR', party: 'IL' },
+      { iso3: 'PSE', party: 'PS' },
+      { iso3: 'LBN', party: 'LB' },
+      { iso3: 'SYR', party: 'UN' },
+      { iso3: 'EGY', party: 'UN' },
+      { iso3: 'JOR', party: 'UN' },
     ],
   },
   card: {
