@@ -131,21 +131,33 @@ export const US_IRAN: ConflictConfig = {
   map: {
     center: [51.0, 27.0],
     zoom: 5,
-    bounds: { latMin: 12, latMax: 42, lonMin: 30, lonMax: 70 },
+    bounds: { latMin: -5, latMax: 65, lonMin: -15, lonMax: 90 },
     theaters: [
       { id: 'persian_gulf',     name: 'Persian Gulf',     bounds: { latMin: 23, latMax: 30, lonMin: 47, lonMax: 57 } },
       { id: 'strait_of_hormuz', name: 'Strait of Hormuz', bounds: { latMin: 25, latMax: 27, lonMin: 55, lonMax: 58 } },
       { id: 'gulf_of_oman',     name: 'Gulf of Oman',     bounds: { latMin: 22, latMax: 26, lonMin: 57, lonMax: 63 } },
       { id: 'red_sea',          name: 'Red Sea',          bounds: { latMin: 12, latMax: 30, lonMin: 32, lonMax: 45 } },
+      { id: 'eastern_med',      name: 'Eastern Med',      bounds: { latMin: 30, latMax: 42, lonMin: 20, lonMax: 37 } },
+      { id: 'arabian_sea',      name: 'Arabian Sea',      bounds: { latMin: 10, latMax: 25, lonMin: 55, lonMax: 75 } },
+      { id: 'central_europe',   name: 'Central Europe',   bounds: { latMin: 44, latMax: 58, lonMin:  5, lonMax: 25 } },
     ],
   },
   dataSources: {
     adsb: {
       enabled: true,
       queryPoints: [
-        { lat: 27.0, lon: 51.0, radiusNm: 250 },
-        { lat: 33.0, lon: 53.0, radiusNm: 250 },
-        { lat: 20.0, lon: 39.0, radiusNm: 250 },
+        // ── Core CENTCOM theater ──────────────────────────────────────────
+        { lat: 27.0, lon: 51.0, radiusNm: 250 },   // Persian Gulf
+        { lat: 33.0, lon: 53.0, radiusNm: 250 },   // Iran (center)
+        { lat: 20.0, lon: 39.0, radiusNm: 250 },   // Red Sea / Yemen
+        // ── Extended CENTCOM / AFRICOM ────────────────────────────────────
+        { lat: 17.0, lon: 63.0, radiusNm: 250 },   // Arabian Sea (carrier ops, P-8 patrols)
+        { lat: 11.0, lon: 43.0, radiusNm: 250 },   // Djibouti / Horn of Africa (Camp Lemonnier)
+        { lat: 34.0, lon: 68.0, radiusNm: 250 },   // Pakistan / Afghanistan / Central Asia
+        // ── EUCOM / Eastern Med ───────────────────────────────────────────
+        { lat: 37.0, lon: 28.0, radiusNm: 300 },   // Eastern Med / Turkey (İncirlik, Akrotiri)
+        { lat: 49.5, lon: 10.0, radiusNm: 300 },   // Central Europe / Germany (Ramstein, Spangdahlem)
+        { lat: 51.0, lon: -1.0, radiusNm: 300 },   // UK / Western Europe (RAF Fairford B-52s, USAFE)
       ],
     },
     ais: {
