@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import ConflictCard from '@/components/ui/ConflictCard'
+import { useMobile } from '@/hooks/useMobile'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -68,6 +69,7 @@ interface ApiConflict {
 export default function ConflictsPage() {
   const [hoveredSlug, setHoveredSlug] = useState<string | null>(null)
   const [statsMap, setStatsMap]       = useState<Record<string, ConflictStats>>({})
+  const isMobile = useMobile()
 
   // Fetch live stats from API on mount, then every 30s
   useEffect(() => {
@@ -97,26 +99,28 @@ export default function ConflictsPage() {
       {/* ── Header ──────────────────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 20px', height: 48,
+        padding: '0 16px', height: 48,
         background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            fontFamily: "'Orbitron', monospace", fontSize: 18, fontWeight: 700,
+            fontFamily: "'Orbitron', monospace", fontSize: isMobile ? 15 : 18, fontWeight: 700,
             color: '#00b0ff', letterSpacing: '0.1em',
           }}>
             ◈ SENTINEL
           </div>
-          <div style={{
-            fontSize: 10, color: 'var(--text-muted)',
-            letterSpacing: '0.12em', textTransform: 'uppercase',
-          }}>
-            Geospatial Intelligence Operations
-          </div>
+          {!isMobile && (
+            <div style={{
+              fontSize: 10, color: 'var(--text-muted)',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+            }}>
+              Geospatial Intelligence Operations
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{
               width: 6, height: 6, borderRadius: '50%',
@@ -130,47 +134,64 @@ export default function ConflictsPage() {
               LIVE
             </span>
           </div>
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-          <div style={{ textAlign: 'right' }}>
-            <div style={{
-              fontSize: 9, color: 'var(--text-muted)',
-              letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 1,
-            }}>
-              Zulu Time
-            </div>
-            <ZuluClock />
-          </div>
+          {!isMobile && (
+            <>
+              <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+              <div style={{ textAlign: 'right' }}>
+                <div style={{
+                  fontSize: 9, color: 'var(--text-muted)',
+                  letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 1,
+                }}>
+                  Zulu Time
+                </div>
+                <ZuluClock />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* ── Main ────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        flex: 1, overflow: 'hidden',
+      }}>
         {/* Globe */}
-        <div style={{ flex: 1, position: 'relative', background: '#030508' }}>
+        <div style={{
+          flex: 1,
+          height: isMobile ? '40vh' : undefined,
+          flexShrink: isMobile ? 0 : undefined,
+          position: 'relative', background: '#030508',
+        }}>
           <ConflictGlobe
             hoveredSlug={hoveredSlug}
             onHoverConflict={setHoveredSlug}
           />
-          <div style={{
-            position: 'absolute', bottom: 16, left: 16,
-            fontFamily: "'Share Tech Mono', monospace",
-            fontSize: 9, color: 'var(--text-muted)',
-            letterSpacing: '0.1em', pointerEvents: 'none',
-          }}>
-            CLICK CONFLICT ZONE TO OPEN THEATER
-          </div>
+          {!isMobile && (
+            <div style={{
+              position: 'absolute', bottom: 16, left: 16,
+              fontFamily: "'Share Tech Mono', monospace",
+              fontSize: 9, color: 'var(--text-muted)',
+              letterSpacing: '0.1em', pointerEvents: 'none',
+            }}>
+              CLICK CONFLICT ZONE TO OPEN THEATER
+            </div>
+          )}
         </div>
 
-        {/* Conflict cards column */}
+        {/* Conflict cards */}
         <div style={{
-          width: 380, flexShrink: 0,
+          width: isMobile ? '100%' : 380, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
-          background: 'var(--bg-base)', borderLeft: '1px solid var(--border)',
-          overflow: 'hidden',
+          background: 'var(--bg-base)',
+          borderLeft: isMobile ? 'none' : '1px solid var(--border)',
+          borderTop: isMobile ? '1px solid var(--border)' : 'none',
+          overflow: 'hidden', flex: isMobile ? 1 : undefined,
         }}>
           {/* Panel header */}
           <div style={{
-            padding: '10px 16px', borderBottom: '1px solid var(--border)',
+            padding: '8px 16px', borderBottom: '1px solid var(--border)',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
           }}>
             <span style={{
@@ -188,8 +209,10 @@ export default function ConflictsPage() {
 
           {/* Cards */}
           <div style={{
-            flex: 1, overflowY: 'auto', padding: 16,
-            display: 'grid', gridTemplateColumns: '1fr', gap: 12, alignContent: 'start',
+            flex: 1, overflowY: 'auto', padding: 12,
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(280px, 1fr))' : '1fr',
+            gap: 10, alignContent: 'start',
           }}>
             {ALL_CONFLICTS.map(conflict => {
               const stats = statsMap[conflict.slug]
@@ -207,7 +230,7 @@ export default function ConflictsPage() {
 
           {/* Bottom note */}
           <div style={{
-            padding: '8px 16px', borderTop: '1px solid var(--border)',
+            padding: '6px 16px', borderTop: '1px solid var(--border)',
             fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em', flexShrink: 0,
           }}>
             {Object.keys(statsMap).length > 0

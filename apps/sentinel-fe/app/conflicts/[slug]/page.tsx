@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
+import { useMobile } from '@/hooks/useMobile'
 import dynamic from 'next/dynamic'
 import { getConflict } from '@sentinel/shared'
 import type { ConflictConfig, Aircraft, Vessel, Incident } from '@sentinel/shared'
@@ -372,7 +373,7 @@ function PosturePanel({
 
   return (
     <div style={{
-      width: 260, flexShrink: 0,
+      width: 260, flexShrink: 0, maxWidth: '100%',
       background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
       display: 'flex', flexDirection: 'column', overflowY: 'auto',
     }}>
@@ -720,6 +721,10 @@ export default function TheaterPage() {
   const [selectedVesselId,   setSelectedVesselId]   = useState<string | null>(null)
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number } | null>(null)
 
+  type MobileTab = 'map' | 'intel' | 'posture'
+  const isMobile = useMobile()
+  const [mobileTab, setMobileTab] = useState<MobileTab>('map')
+
   const { aircraft }                     = useAircraftWebSocket(slug)
   const { vessels }                      = useVesselWebSocket(slug)
   const { incidents, status: incStatus } = useIncidentSSE(slug)
@@ -784,12 +789,12 @@ export default function TheaterPage() {
       {/* ── Theater header ──────────────────────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 16px', height: 52,
+        padding: '0 12px', height: isMobile ? 44 : 52,
         background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)',
-        flexShrink: 0, gap: 16,
+        flexShrink: 0, gap: 8,
       }}>
         {/* Left: back + conflict name */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, minWidth: 0 }}>
           <a
             href="/conflicts"
             style={{
@@ -798,36 +803,41 @@ export default function TheaterPage() {
               letterSpacing: '0.1em', textDecoration: 'none', whiteSpace: 'nowrap',
             }}
           >
-            ← CONFLICTS
+            ←{isMobile ? '' : ' CONFLICTS'}
           </a>
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
           <div style={{
-            fontFamily: "'Orbitron', monospace", fontSize: 18, fontWeight: 700,
+            fontFamily: "'Orbitron', monospace", fontSize: isMobile ? 13 : 18, fontWeight: 700,
             color: 'var(--text-primary)', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {conflict.name}
           </div>
-          <span style={{
-            fontSize: 10, color: 'var(--text-secondary)',
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}>
-            {conflict.shortName}
-          </span>
+          {!isMobile && (
+            <span style={{
+              fontSize: 10, color: 'var(--text-secondary)',
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}>
+              {conflict.shortName}
+            </span>
+          )}
         </div>
 
-        {/* Center: parties */}
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {conflict.parties.map(p => (
-            <div key={p.shortCode} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontSize: 16 }}>{p.flagEmoji}</span>
-              <span style={{ fontSize: 10, color: p.color, letterSpacing: '0.08em' }}>{p.shortCode}</span>
-            </div>
-          ))}
-        </div>
+        {/* Center: parties (desktop only) */}
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {conflict.parties.map(p => (
+              <div key={p.shortCode} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 16 }}>{p.flagEmoji}</span>
+                <span style={{ fontSize: 10, color: p.color, letterSpacing: '0.08em' }}>{p.shortCode}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Right: counts + intensity + clock + live */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-          {aircraft.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, flexShrink: 0 }}>
+          {!isMobile && aircraft.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>AC</span>
               <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 14, fontWeight: 700, color: '#00b0ff' }}>
@@ -835,7 +845,7 @@ export default function TheaterPage() {
               </span>
             </div>
           )}
-          {vessels.length > 0 && (
+          {!isMobile && vessels.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>VS</span>
               <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 14, fontWeight: 700, color: '#22c55e' }}>
@@ -843,7 +853,7 @@ export default function TheaterPage() {
               </span>
             </div>
           )}
-          {incidents.length > 0 && (
+          {!isMobile && incidents.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>EVT</span>
               <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 14, fontWeight: 700, color: '#eab308' }}>
@@ -853,21 +863,25 @@ export default function TheaterPage() {
           )}
 
           <span style={{
-            padding: '3px 8px',
+            padding: '2px 6px',
             background: `${intensityColor}20`,
             border: `1px solid ${intensityColor}55`,
             borderRadius: 2,
-            fontSize: 10, color: intensityColor,
+            fontSize: 9, color: intensityColor,
             fontFamily: "'Share Tech Mono', monospace",
-            letterSpacing: '0.12em', textTransform: 'uppercase',
+            letterSpacing: '0.1em', textTransform: 'uppercase',
             animation: conflict.intensity === 'critical' ? 'pulse-opacity 1.5s ease-in-out infinite' : undefined,
           }}>
             {conflict.intensity.toUpperCase()}
           </span>
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
-          <ZuluClock />
-          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+          {!isMobile && (
+            <>
+              <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+              <ZuluClock />
+              <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
+            </>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{
@@ -875,40 +889,54 @@ export default function TheaterPage() {
               background: '#22c55e', display: 'inline-block',
               animation: 'pulse-opacity 2s ease-in-out infinite',
             }} />
-            <span style={{
-              fontSize: 10, color: '#22c55e',
-              fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.12em',
-            }}>
-              LIVE
-            </span>
+            {!isMobile && (
+              <span style={{
+                fontSize: 10, color: '#22c55e',
+                fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.12em',
+              }}>
+                LIVE
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       {/* ── Main content ────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <LeftIntelPanel
-          conflict={conflict}
-          aircraft={aircraft}
-          vessels={vessels}
-          incidents={incidents}
-          incidentStatus={incStatus}
-          selectedAircraftId={selectedAircraftId}
-          selectedVesselId={selectedVesselId}
-          onSelectAircraft={setSelectedAircraftId}
-          onSelectVessel={setSelectedVesselId}
-          onFlyTo={(lat, lon) => setFlyTo({ lat, lon })}
-          sitrep={sitrep}
-          sitrepLoading={sitrepLoading}
-          sitrepPending={sitrepPending}
-          convergenceAlerts={convergenceAlerts}
-          surgeAlerts={surgeAlerts}
-          strikePackage={strikePackage}
-          slug={slug}
-        />
 
-        {/* Map area */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {/* Left intel panel — hidden on mobile unless intel tab active */}
+        <div style={{
+          display: (!isMobile || mobileTab === 'intel') ? 'flex' : 'none',
+          width: isMobile ? '100%' : undefined,
+          flex: isMobile ? 1 : undefined,
+          flexDirection: 'column', overflow: 'hidden',
+        }}>
+          <LeftIntelPanel
+            conflict={conflict}
+            aircraft={aircraft}
+            vessels={vessels}
+            incidents={incidents}
+            incidentStatus={incStatus}
+            selectedAircraftId={selectedAircraftId}
+            selectedVesselId={selectedVesselId}
+            onSelectAircraft={setSelectedAircraftId}
+            onSelectVessel={setSelectedVesselId}
+            onFlyTo={(lat, lon) => { setFlyTo({ lat, lon }); if (isMobile) setMobileTab('map') }}
+            sitrep={sitrep}
+            sitrepLoading={sitrepLoading}
+            sitrepPending={sitrepPending}
+            convergenceAlerts={convergenceAlerts}
+            surgeAlerts={surgeAlerts}
+            strikePackage={strikePackage}
+            slug={slug}
+          />
+        </div>
+
+        {/* Map area — hidden on mobile unless map tab active */}
+        <div style={{
+          display: (!isMobile || mobileTab === 'map') ? 'flex' : 'none',
+          flex: 1, position: 'relative', overflow: 'hidden',
+        }}>
           <TheaterMap
             conflict={conflict}
             layers={layers}
@@ -930,13 +958,65 @@ export default function TheaterPage() {
           )}
         </div>
 
-        <PosturePanel
-          conflict={conflict}
-          aircraft={aircraft}
-          vessels={vessels}
-          economic={economic}
-        />
+        {/* Right posture panel — hidden on mobile unless posture tab active */}
+        <div style={{
+          display: (!isMobile || mobileTab === 'posture') ? 'flex' : 'none',
+          width: isMobile ? '100%' : undefined,
+          flex: isMobile ? 1 : undefined,
+          flexDirection: 'column', overflow: 'hidden',
+        }}>
+          <PosturePanel
+            conflict={conflict}
+            aircraft={aircraft}
+            vessels={vessels}
+            economic={economic}
+          />
+        </div>
       </div>
+
+      {/* ── Mobile bottom tab bar ────────────────────────────── */}
+      {isMobile && (
+        <div style={{
+          display: 'flex', flexShrink: 0,
+          background: 'var(--bg-surface)', borderTop: '1px solid var(--border)',
+        }}>
+          {([
+            { id: 'map',     label: '◉ MAP',     count: null },
+            { id: 'intel',   label: '≡ INTEL',   count: incidents.length || null },
+            { id: 'posture', label: '⊞ POSTURE', count: null },
+          ] as const).map(tab => {
+            const active = mobileTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setMobileTab(tab.id)}
+                style={{
+                  flex: 1, padding: '10px 0', position: 'relative',
+                  background: active ? 'var(--bg-overlay)' : 'transparent',
+                  color: active ? '#00b0ff' : 'var(--text-muted)',
+                  border: 'none',
+                  borderTop: `2px solid ${active ? '#00b0ff' : 'transparent'}`,
+                  fontFamily: "'Share Tech Mono', monospace",
+                  fontSize: 10, letterSpacing: '0.1em', cursor: 'pointer',
+                  transition: 'color 0.15s',
+                }}
+              >
+                {tab.label}
+                {tab.count !== null && tab.count > 0 && (
+                  <span style={{
+                    position: 'absolute', top: 6, right: '22%',
+                    background: '#ef4444', color: '#fff',
+                    fontSize: 8, fontFamily: "'Share Tech Mono', monospace",
+                    borderRadius: 2, padding: '1px 3px', lineHeight: 1,
+                  }}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── Status bar ──────────────────────────────────────── */}
       <DataFreshness />
