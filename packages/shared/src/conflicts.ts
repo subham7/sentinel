@@ -131,7 +131,7 @@ export const US_IRAN: ConflictConfig = {
   map: {
     center: [51.0, 27.0],
     zoom: 5,
-    bounds: { latMin: -20, latMax: 75, lonMin: -180, lonMax: 90 },
+    bounds: { latMin: -90, latMax: 90, lonMin: -180, lonMax: 180 },
     theaters: [
       { id: 'persian_gulf',     name: 'Persian Gulf',     bounds: { latMin: 23, latMax: 30, lonMin: 47, lonMax: 57 } },
       { id: 'strait_of_hormuz', name: 'Strait of Hormuz', bounds: { latMin: 25, latMax: 27, lonMin: 55, lonMax: 58 } },
@@ -159,9 +159,16 @@ export const US_IRAN: ConflictConfig = {
         { lat: 49.5, lon: 10.0, radiusNm: 300 },   // Central Europe / Germany (Ramstein, Spangdahlem)
         { lat: 51.0, lon: -1.0, radiusNm: 300 },   // UK / Western Europe (RAF Fairford B-52s, USAFE)
         // ── CONUS / North America ─────────────────────────────────────────
-        { lat: 38.0, lon: -97.0, radiusNm: 400 },  // Central CONUS (Whiteman, McConnell, Tinker)
-        { lat: 44.0, lon: -120.0, radiusNm: 400 }, // Pacific Northwest / Mountain West (Fairchild, Malmstrom)
+        { lat: 38.0, lon: -97.0,  radiusNm: 400 }, // Central CONUS (Whiteman, McConnell, Tinker, Barksdale)
+        { lat: 44.0, lon: -120.0, radiusNm: 400 }, // Pacific NW / Mountain West (Fairchild, Malmstrom)
         { lat: 33.0, lon: -117.0, radiusNm: 300 }, // Southern California (Edwards, March, Miramar)
+        { lat: 41.0, lon: -74.0,  radiusNm: 400 }, // Northeast CONUS (Andrews, Langley, McGuire, Stewart)
+        { lat: 30.0, lon: -85.0,  radiusNm: 400 }, // Southeast CONUS (Eglin, Tyndall, Moody, Shaw)
+        // ── US Pacific / Overseas ─────────────────────────────────────────
+        { lat: 64.0, lon: -153.0, radiusNm: 400 }, // Alaska (Elmendorf-Richardson, Eielson AFB)
+        { lat: 21.0, lon: -157.0, radiusNm: 300 }, // Hawaii (Hickam/JBPHH, Kaneohe Bay MCAS)
+        { lat: 13.5, lon: 144.8,  radiusNm: 300 }, // Guam (Andersen AFB — B-52 forward deployments)
+        { lat: -7.3, lon: 72.4,   radiusNm: 250 }, // Diego Garcia (CENTCOM bomber hub — B-2, B-52)
       ],
     },
     ais: {

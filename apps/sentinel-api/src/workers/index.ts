@@ -9,7 +9,7 @@ import { startEconomicWorker }  from './economic.worker.js'
 
 export function startWorkers(): void {
   console.log('[workers] starting...')
-  startADSBWorker()
+  startADSBWorker(60_000)  // 60s — accommodates 18 query points across all conflicts
   startAISWorker()
   startGDELTWorker()
   startACLEDWorker()
