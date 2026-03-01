@@ -23,7 +23,11 @@ import { startWorkers } from './workers/index.js'
 const app = Fastify({ logger: { level: 'warn' } })
 
 await app.register(cors, {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3000'],
+  // Allow explicit list from env, or all origins for public deployment
+  origin: process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : true,
+  methods: ['GET', 'POST', 'OPTIONS'],
 })
 await app.register(rateLimit, { max: 200, timeWindow: '1 minute' })
 await app.register(websocket)
