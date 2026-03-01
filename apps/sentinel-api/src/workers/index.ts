@@ -9,7 +9,7 @@ import { startEconomicWorker }  from './economic.worker.js'
 
 export function startWorkers(): void {
   console.log('[workers] starting...')
-  startADSBWorker(60_000)  // 60s — accommodates 18 query points across all conflicts
+  startADSBWorker(90_000)  // 90s — 18 query points × ~1.5s delay + fetch time ≈ 70-80s/cycle
   startAISWorker()
   startGDELTWorker()
   startACLEDWorker()

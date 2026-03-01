@@ -4,9 +4,9 @@ import { cacheGet, cacheSet } from '../services/cache.js'
 import { CircuitBreaker } from '../services/circuit-breaker.js'
 import { insertTrail, pruneOldTrails } from '../db/queries.js'
 
-const breaker  = new CircuitBreaker('adsb.fi', 3, 5 * 60_000)
+const breaker  = new CircuitBreaker('adsb.fi', 10, 2 * 60_000) // 10 failures → open 2 min
 const TRAIL_MAX = 20
-const DELAY_MS  = 1100   // 1.1s between per-point requests
+const DELAY_MS  = 1500   // 1.5s between per-point requests (avoids adsb.fi rate limiting)
 
 // ── Raw ADS-B shape from adsb.fi ──────────────────────────────────────────────
 
@@ -186,7 +186,21 @@ export async function runADSBWorker(): Promise<void> {
 }
 
 export function startADSBWorker(intervalMs = 30_000): ReturnType<typeof setInterval> {
-  // Run immediately, then every intervalMs
-  void runADSBWorker()
-  return setInterval(() => void runADSBWorker(), intervalMs)
+  let running = false
+
+  async function safePoll() {
+    if (running) {
+      console.log('[adsb] previous poll still running, skipping')
+      return
+    }
+    running = true
+    try {
+      await runADSBWorker()
+    } finally {
+      running = false
+    }
+  }
+
+  void safePoll()
+  return setInterval(() => void safePoll(), intervalMs)
 }
