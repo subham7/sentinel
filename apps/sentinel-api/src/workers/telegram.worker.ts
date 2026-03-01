@@ -137,9 +137,19 @@ async function scrapeChannel(channel: string, conflictSlug: string): Promise<num
   return inserted
 }
 
+function getChannelsForConflict(conflict: (typeof ALL_CONFLICTS)[0]): string[] {
+  // Merge config channels with env var overrides (e.g. TELEGRAM_CHANNELS_US_IRAN)
+  const envKey = `TELEGRAM_CHANNELS_${conflict.slug.toUpperCase().replace(/-/g, '_')}`
+  const envVal = process.env[envKey] ?? ''
+  const envChannels = envVal.split(',').map(s => s.trim()).filter(Boolean)
+  const configChannels = conflict.dataSources.telegram.channels
+  // Union — env channels take precedence, no duplicates
+  return [...new Set([...configChannels, ...envChannels])]
+}
+
 async function poll(): Promise<void> {
   for (const conflict of ALL_CONFLICTS) {
-    const channels = conflict.dataSources.telegram.channels
+    const channels = getChannelsForConflict(conflict)
     for (const channel of channels) {
       try {
         const n = await scrapeChannel(channel, conflict.slug)
@@ -153,12 +163,12 @@ async function poll(): Promise<void> {
 }
 
 export function startTelegramWorker(): void {
-  const allChannels = ALL_CONFLICTS.flatMap(c => c.dataSources.telegram.channels)
+  const allChannels = ALL_CONFLICTS.flatMap(c => getChannelsForConflict(c))
   if (!allChannels.length) {
     console.log('[telegram] no channels configured — worker idle')
     return
   }
-  console.log(`[telegram] worker started — ${allChannels.length} channels (4-min poll)`)
+  console.log(`[telegram] worker started — channels: ${allChannels.join(', ')} (4-min poll)`)
   void poll()
   setInterval(() => void poll(), POLL_MS)
 }

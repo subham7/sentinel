@@ -54,6 +54,9 @@ export async function registerIncidentRoutes(app: FastifyInstance): Promise<void
     const { slug } = req.params
     if (!getConflict(slug)) return reply.status(404).send({ error: 'Not found' })
 
+    // Hijack the response so Fastify doesn't attempt to serialise the return value
+    // after the handler resolves (which would double-write headers and close the stream)
+    reply.hijack()
     reply.raw.writeHead(200, {
       'Content-Type':  'text/event-stream',
       'Cache-Control': 'no-cache',
