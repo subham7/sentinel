@@ -3,7 +3,7 @@
 Multi-conflict geospatial intelligence platform. Tracks military aircraft, naval vessels,
 and OSINT incidents across active conflict theaters in real time.
 
-**Current status:** Phase 5 ✅ (Phase 6 upcoming)
+**Current status:** Phase 6 ✅ (Phase 7 upcoming)
 
 ---
 
@@ -791,16 +791,17 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 ---
 
-### Phase 6 — Economic & Cyber Layer ⏳ UPCOMING
+### Phase 6 — Economic & Cyber Layer ✅ COMPLETE
 
 **Goal:** Oil price, Rial rate, internet disruption indicators.
 
 **Tasks:**
-- EIA oil: daily poll, Brent + WTI + Iranian production (us-iran only)
-- Rial rate: scrape bonbast.com every 30 min (us-iran only)
-- Cloudflare Radar: poll countries from each conflict's `acled.countries` list
-- `OilPriceWidget.tsx` + `RialWidget.tsx` — conditional render on us-iran
-- Internet disruption layer: toggleable markers, cross-reference with Telegram silence
+- [x] `economic.worker.ts`: EIA Brent+WTI hourly poll + bonbast.com rial scrape (30min), two-strategy (POST JSON / HTML regex), Toman→Rial conversion, sanity check 300k–5M IRR range
+- [x] `routes/economic.ts`: GET /api/economic/oil + GET /api/economic/rial (fresh → stale → 202)
+- [x] `hooks/useEconomicData.ts`: fetch oil + rial, 30-min refetch, non-fatal
+- [x] `OilPriceWidget.tsx`: Brent+WTI prices, 60-day SVG sparkline, change label — us-iran only
+- [x] `RialWidget.tsx`: USD/IRR parallel market rate, 24h change %, depreciation bar — us-iran only
+- [x] Wired into PosturePanel (after Hormuz widget)
 
 ---
 

@@ -16,6 +16,7 @@ import { registerIncidentRoutes }    from './routes/incidents.js'
 import { registerNuclearRoutes }     from './routes/nuclear.js'
 import { registerSitrepRoutes }      from './routes/sitrep.js'
 import { registerAnalystChatRoutes } from './routes/analyst-chat.js'
+import { registerEconomicRoutes }    from './routes/economic.js'
 import { getRecentIncidents }      from './db/queries.js'
 import { startWorkers } from './workers/index.js'
 
@@ -31,7 +32,7 @@ await app.register(websocket)
 
 app.get('/health', async () => ({
   status:    'ok',
-  phase:     5,
+  phase:     6,
   uptime:    process.uptime(),
   timestamp: new Date().toISOString(),
 }))
@@ -99,6 +100,7 @@ await registerIncidentRoutes(app)
 await registerNuclearRoutes(app)
 await registerSitrepRoutes(app)
 await registerAnalystChatRoutes(app)
+await registerEconomicRoutes(app)
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/theater', async (req, reply) => {
   const conflict = getConflict(req.params.slug)
@@ -141,5 +143,5 @@ startWorkers()
 
 const port = Number(process.env.PORT ?? 3001)
 await app.listen({ port, host: '0.0.0.0' })
-console.log(`SENTINEL API — Phase 5 — http://localhost:${port}`)
+console.log(`SENTINEL API — Phase 6 — http://localhost:${port}`)
 console.log(`Conflicts: ${ALL_CONFLICTS.map(c => c.slug).join(', ')}`)

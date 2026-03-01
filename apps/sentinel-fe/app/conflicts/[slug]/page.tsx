@@ -8,6 +8,8 @@ import type { ConflictConfig, Aircraft, Vessel, Incident } from '@sentinel/share
 import type { LayerState } from '@/components/map/TheaterMap'
 import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
+import OilPriceWidget from '@/components/panels/OilPriceWidget'
+import RialWidget from '@/components/panels/RialWidget'
 import IncidentFeed from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
@@ -17,6 +19,7 @@ import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
 import { useIncidentSSE } from '@/hooks/useIncidentSSE'
 import { useNuclearStatus } from '@/hooks/useNuclearStatus'
 import { useSitrepReport } from '@/hooks/useSitrepReport'
+import { useEconomicData } from '@/hooks/useEconomicData'
 import { detectConvergence } from '@/services/signal-aggregator'
 import type { ConvergenceAlert } from '@/services/signal-aggregator'
 import { detectSurge, detectStrikePackage } from '@/services/military-surge'
@@ -350,11 +353,12 @@ const SURGE_COLORS: Record<string, string> = {
 // ── Right sidebar: posture + nuclear watch ────────────────────────────────────
 
 function PosturePanel({
-  conflict, aircraft, vessels,
+  conflict, aircraft, vessels, economic,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
   vessels: Vessel[]
+  economic: ReturnType<typeof useEconomicData>
 }) {
   const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
   const hasNuclear = (conflict.overlays.nuclearSites?.length ?? 0) > 0
@@ -466,6 +470,16 @@ function PosturePanel({
       {/* Hormuz widget (us-iran only) */}
       {conflict.slug === 'us-iran' && vessels.length > 0 && (
         <HormuzWidget vessels={vessels} />
+      )}
+
+      {/* Oil price widget (us-iran only) */}
+      {conflict.slug === 'us-iran' && (
+        <OilPriceWidget data={economic.oil} pending={economic.oilPending} />
+      )}
+
+      {/* Rial rate widget (us-iran only) */}
+      {conflict.slug === 'us-iran' && (
+        <RialWidget data={economic.rial} pending={economic.rialPending} />
       )}
 
       {/* Sub-theaters */}
@@ -711,6 +725,7 @@ export default function TheaterPage() {
   const { incidents, status: incStatus } = useIncidentSSE(slug)
   const nuclearStatuses                  = useNuclearStatus(slug)
   const { report: sitrep, loading: sitrepLoading, pending: sitrepPending } = useSitrepReport(slug)
+  const economic = useEconomicData()
 
   const convergenceAlerts = useMemo(
     () => detectConvergence(aircraft, vessels, incidents),
@@ -919,6 +934,7 @@ export default function TheaterPage() {
           conflict={conflict}
           aircraft={aircraft}
           vessels={vessels}
+          economic={economic}
         />
       </div>
 

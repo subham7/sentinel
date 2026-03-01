@@ -85,6 +85,21 @@ export interface DataSource {
   latency_ms?: number
 }
 
+export interface OilPriceData {
+  brent:        number          // USD/barrel
+  wti:          number
+  brent_change: number          // $ vs previous day
+  wti_change:   number
+  history:      number[]        // last N daily brent closes, oldest first
+  updated_at:   number          // unix ms
+}
+
+export interface RialRateData {
+  usd_irr:    number            // IRR per 1 USD (parallel market)
+  change_24h: number            // % change
+  updated_at: number
+}
+
 export interface SitrepReport {
   slug:           string
   summary:        string          // 2–3 AI sentences
