@@ -1014,7 +1014,7 @@ export default function TheaterPage() {
           {/* Keyboard shortcuts legend */}
           {!isMobile && (
             <div style={{
-              position: 'absolute', bottom: 12, right: 12, zIndex: 10,
+              position: 'absolute', bottom: 12, left: 12, zIndex: 10,
               background: 'var(--bg-elevated)',
               borderRadius: 4, padding: '6px 10px',
               fontFamily: "'Share Tech Mono', monospace",
