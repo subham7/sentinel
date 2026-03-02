@@ -217,14 +217,17 @@ function buildIncidentGeoJSON(incidents: Incident[]): GeoJSON.FeatureCollection 
         id:   i.id,
         geometry: { type: 'Point', coordinates: [i.lon, i.lat] },
         properties: {
-          id:        i.id,
-          title:     i.title,
-          category:  i.category,
-          severity:  i.severity,
-          source:    i.source,
-          timestamp: i.timestamp,
-          age_hours: Math.min(24, (nowMs - new Date(i.timestamp).getTime()) / 3_600_000),
-          sev_color: SEV_COLORS[i.severity] ?? '#94a3b8',
+          id:            i.id,
+          title:         i.title,
+          category:      i.category,
+          severity:      i.severity,
+          source:        i.source,
+          timestamp:     i.timestamp,
+          summary:       i.summary ?? '',
+          location_name: i.location_name ?? '',
+          age_hours:     Math.min(24, (nowMs - new Date(i.timestamp).getTime()) / 3_600_000),
+          sev_color:     SEV_COLORS[i.severity] ?? '#94a3b8',
+          is_critical:   i.severity >= 4 ? 1 : 0,
         },
       })),
   }
@@ -355,6 +358,7 @@ export default function TheaterMap({
     const iv = incVis  ? 'visible' : 'none'
     const hv = heatVis ? 'visible' : 'none'
     if (map.getLayer('incidents-heatmap')) map.setLayoutProperty('incidents-heatmap', 'visibility', hv)
+    if (map.getLayer('incidents-glow'))    map.setLayoutProperty('incidents-glow',    'visibility', iv)
     if (map.getLayer('incidents-circles')) map.setLayoutProperty('incidents-circles', 'visibility', iv)
     if (map.getLayer('incidents-labels'))  map.setLayoutProperty('incidents-labels',  'visibility', iv)
   }, [])
@@ -736,18 +740,34 @@ export default function TheaterMap({
           ],
         },
       })
+      // Glow halo (outer, blurred)
+      map.addLayer({
+        id:     'incidents-glow',
+        type:   'circle',
+        source: 'incidents',
+        layout: { visibility: layersRef.current.incidents ? 'visible' : 'none' },
+        paint: {
+          'circle-radius':  ['interpolate', ['linear'], ['get', 'severity'], 1, 10, 5, 24],
+          'circle-color':   ['get', 'sev_color'],
+          'circle-opacity': ['interpolate', ['linear'], ['get', 'age_hours'], 0, 0.18, 24, 0.05],
+          'circle-blur':    1,
+          'circle-stroke-width': 0,
+        },
+      })
+      // Main circle
       map.addLayer({
         id:     'incidents-circles',
         type:   'circle',
         source: 'incidents',
         layout: { visibility: layersRef.current.incidents ? 'visible' : 'none' },
         paint: {
-          'circle-radius':  ['interpolate', ['linear'], ['get', 'severity'], 1, 5, 5, 12],
+          'circle-radius':  ['interpolate', ['linear'], ['get', 'severity'], 1, 4, 5, 10],
           'circle-color':   ['get', 'sev_color'],
-          'circle-opacity': ['interpolate', ['linear'], ['get', 'age_hours'], 0, 0.85, 24, 0.3],
-          'circle-stroke-width':   1,
+          'circle-opacity': ['interpolate', ['linear'], ['get', 'age_hours'], 0, 0.9, 24, 0.4],
+          'circle-stroke-width':   1.5,
           'circle-stroke-color':   ['get', 'sev_color'],
-          'circle-stroke-opacity': 0.5,
+          'circle-stroke-opacity': ['interpolate', ['linear'], ['get', 'age_hours'], 0, 0.9, 24, 0.3],
+          'circle-pitch-alignment': 'map',
         },
       })
       map.addLayer({
@@ -759,27 +779,73 @@ export default function TheaterMap({
           'text-field':  ['get', 'title'],
           'text-font':   ['Noto Sans Regular'],
           'text-size':    9,
-          'text-offset': [0, 1.4],
+          'text-offset': [0, 1.6],
           'text-anchor': 'top',
           'text-optional': true,
-          'text-max-width': 10,
+          'text-max-width': 12,
           'text-allow-overlap': false,
         },
         minzoom: 7,
         paint: {
           'text-color':      ['get', 'sev_color'],
-          'text-halo-color': 'rgba(0,0,0,0.8)',
-          'text-halo-width':  1,
+          'text-halo-color': 'rgba(0,0,0,0.9)',
+          'text-halo-width':  1.5,
         },
       })
+
+      // Hover popup for incidents
+      const incidentPopup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 12,
+        maxWidth: '300px',
+      })
+
+      map.on('mouseenter', 'incidents-circles', (e) => {
+        if (!e.features || !e.features[0]) return
+        map.getCanvas().style.cursor = 'pointer'
+        const p = e.features[0].properties as Record<string, unknown>
+        const sevColor = p.sev_color as string
+        const severity = p.severity as number
+        const sevLabel = ['', 'INFO', 'LOW', 'MED', 'HIGH', 'CRIT'][severity] ?? 'UNK'
+        const ts = typeof p.timestamp === 'string' ? p.timestamp.slice(0, 16).replace('T', ' ') + 'Z' : ''
+        const loc = (p.location_name as string) || ''
+        const summary = (p.summary as string) || ''
+
+        incidentPopup.setLngLat(e.lngLat).setHTML(`
+          <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#e2e8f0;
+                      padding:10px 12px;background:#0d1224;
+                      border:1px solid ${sevColor}44;border-radius:3px;min-width:200px;max-width:280px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <span style="font-size:8px;color:${sevColor};letter-spacing:0.14em;text-transform:uppercase;
+                           background:${sevColor}18;border:1px solid ${sevColor}44;
+                           padding:1px 5px;border-radius:2px">${sevLabel}</span>
+              <span style="font-size:8px;color:#475569">${ts}</span>
+            </div>
+            <div style="font-size:11px;color:#e2e8f0;margin-bottom:${summary ? 6 : 0}px;line-height:1.4">
+              ${String(p.title ?? '')}
+            </div>
+            ${summary ? `<div style="font-size:10px;color:#94a3b8;line-height:1.5;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px">${summary}</div>` : ''}
+            ${loc ? `<div style="font-size:9px;color:#475569;margin-top:4px">📍 ${loc}</div>` : ''}
+          </div>
+        `).addTo(map)
+      })
+
+      map.on('mousemove', 'incidents-circles', (e) => {
+        incidentPopup.setLngLat(e.lngLat)
+      })
+
+      map.on('mouseleave', 'incidents-circles', () => {
+        map.getCanvas().style.cursor = ''
+        incidentPopup.remove()
+      })
+
       map.on('click', 'incidents-circles', (e) => {
         if (!e.features || !e.features[0]) return
         const props   = e.features[0].properties as Record<string, unknown>
         const clicked = incidentsRef.current.find(i => i.id === props.id)
         onPickIncident?.(clicked ?? null)
       })
-      map.on('mouseenter', 'incidents-circles', () => { map.getCanvas().style.cursor = 'pointer' })
-      map.on('mouseleave', 'incidents-circles', () => { map.getCanvas().style.cursor = '' })
 
       applyMarkerVisibility(map, layersRef.current)
       applySamVisibility(map, layersRef.current.sam)

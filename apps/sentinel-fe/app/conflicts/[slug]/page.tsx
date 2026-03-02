@@ -71,6 +71,10 @@ function ZuluClock() {
   )
 }
 
+const SEV_COLORS: Record<number, string> = {
+  1: '#22c55e', 2: '#84cc16', 3: '#eab308', 4: '#f97316', 5: '#ef4444',
+}
+
 const INTENSITY_COLORS: Record<string, string> = {
   critical: '#ef4444', high: '#f97316', elevated: '#eab308', low: '#22c55e',
 }
@@ -342,6 +346,61 @@ function VesselPopup({ v, onClose }: { v: Vessel; onClose: () => void }) {
           <span style={{ fontSize: 10, color: 'var(--text-primary)' }}>{value}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Incident detail popup ─────────────────────────────────────────────────────
+
+const SEV_LABELS: Record<number, string> = { 1: 'INFO', 2: 'LOW', 3: 'MED', 4: 'HIGH', 5: 'CRIT' }
+
+function IncidentPopup({ incident, onClose }: { incident: Incident; onClose: () => void }) {
+  const sevColor = SEV_COLORS[incident.severity] ?? '#94a3b8'
+  const ts = incident.timestamp.slice(0, 16).replace('T', ' ') + 'Z'
+  return (
+    <div style={{
+      position: 'absolute', top: 60, right: 16, zIndex: 20,
+      background: 'var(--bg-elevated)', borderRadius: 4, padding: '12px 14px',
+      minWidth: 260, maxWidth: 320,
+      border: `1px solid ${sevColor}44`,
+      fontFamily: "'Share Tech Mono', monospace",
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontSize: 8, color: sevColor, letterSpacing: '0.14em', textTransform: 'uppercase',
+            background: `${sevColor}18`, border: `1px solid ${sevColor}44`,
+            padding: '1px 5px', borderRadius: 2,
+          }}>
+            {SEV_LABELS[incident.severity] ?? 'UNK'}
+          </span>
+          <span style={{ fontSize: 8, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            {incident.source}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: 0 }}
+        >✕</button>
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5, marginBottom: 8 }}>
+        {incident.title}
+      </div>
+
+      {incident.summary && (
+        <div style={{
+          fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.6,
+          borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginBottom: 6,
+        }}>
+          {incident.summary}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
+        <span>{incident.location_name || `${incident.lat?.toFixed(2)}°, ${incident.lon?.toFixed(2)}°`}</span>
+        <span>{ts}</span>
+      </div>
     </div>
   )
 }
@@ -749,6 +808,7 @@ export default function TheaterPage() {
   })
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null)
   const [selectedVesselId,   setSelectedVesselId]   = useState<string | null>(null)
+  const [selectedIncident,   setSelectedIncident]   = useState<Incident | null>(null)
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number } | null>(null)
   const [feedSize, setFeedSize] = useState<FeedSize>('normal')
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -792,6 +852,7 @@ export default function TheaterPage() {
         if (paletteOpen) { setPaletteOpen(false); return }
         setSelectedAircraftId(null)
         setSelectedVesselId(null)
+        setSelectedIncident(null)
         return
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -1001,6 +1062,7 @@ export default function TheaterPage() {
             selectedId={selectedAircraftId}
             onPickAircraft={ac => setSelectedAircraftId(ac?.icao24 ?? null)}
             onPickVessel={v => setSelectedVesselId(v?.mmsi ?? null)}
+            onPickIncident={inc => setSelectedIncident(inc)}
             flyTo={flyTo}
           />
           <LayerControl conflict={conflict} layers={layers} onChange={handleLayerToggle} />
@@ -1009,6 +1071,9 @@ export default function TheaterPage() {
           )}
           {selectedVs && !selectedAc && (
             <VesselPopup v={selectedVs} onClose={() => setSelectedVesselId(null)} />
+          )}
+          {selectedIncident && !selectedAc && !selectedVs && (
+            <IncidentPopup incident={selectedIncident} onClose={() => setSelectedIncident(null)} />
           )}
 
           {/* Keyboard shortcuts legend */}

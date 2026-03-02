@@ -108,3 +108,27 @@ body {
 .s-chokepoint-ring2 {
   animation-delay: 1s;
 }
+
+/* ── MapLibre popup overrides ───────────────────────────── */
+/* Strip the default white bubble — inner HTML provides its own styling */
+.maplibregl-popup-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+/* Hide the white arrow tip */
+.maplibregl-popup-tip {
+  display: none !important;
+}
+.maplibregl-popup {
+  z-index: 30;
+}
+
+/* ── Incident point pulse animation ─────────────────────── */
+@keyframes incident-pulse {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  50%  { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1);   opacity: 0; }
+}
