@@ -65,7 +65,7 @@ export async function registerIncidentRoutes(app: FastifyInstance): Promise<void
     })
 
     // Send initial batch (last 24h)
-    const initial = getRecentIncidents(slug, 24, 100)
+    const initial = getRecentIncidents(slug, 24, 200)
     reply.raw.write(`event: init\ndata: ${JSON.stringify(initial)}\n\n`)
 
     // Send keepalive every 25s to prevent proxy timeouts
