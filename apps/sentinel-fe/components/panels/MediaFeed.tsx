@@ -42,19 +42,36 @@ function Lightbox({ item, onClose }: { item: TelegramMedia; onClose: () => void 
         ✕
       </button>
 
-      {/* Image / video poster */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={item.url}
-        alt={item.caption ?? 'Telegram media'}
-        onClick={e => e.stopPropagation()}
-        style={{
-          maxWidth: '90vw', maxHeight: '75vh',
-          objectFit: 'contain', borderRadius: 4,
-          border: '1px solid var(--border-bright)',
-        }}
-        loading="lazy"
-      />
+      {/* Image / video */}
+      {item.media_type === 'video' ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video
+          src={item.url}
+          poster={item.thumbnail_url ?? undefined}
+          controls
+          autoPlay
+          onClick={e => e.stopPropagation()}
+          style={{
+            maxWidth: '90vw', maxHeight: '75vh',
+            borderRadius: 4,
+            border: '1px solid var(--border-bright)',
+            background: '#000',
+          }}
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.url}
+          alt={item.caption ?? 'Telegram media'}
+          onClick={e => e.stopPropagation()}
+          style={{
+            maxWidth: '90vw', maxHeight: '75vh',
+            objectFit: 'contain', borderRadius: 4,
+            border: '1px solid var(--border-bright)',
+          }}
+          loading="lazy"
+        />
+      )}
 
       {/* Meta */}
       <div
@@ -119,7 +136,7 @@ function MediaCard({ item, onClick }: { item: TelegramMedia; onClick: () => void
         <div style={{ position: 'relative', width: '100%' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={item.url}
+            src={item.thumbnail_url ?? item.url}
             alt={item.caption ?? ''}
             onError={() => setImgError(true)}
             style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 180 }}
