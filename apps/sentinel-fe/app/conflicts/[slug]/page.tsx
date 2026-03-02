@@ -823,9 +823,18 @@ function LeftIntelPanel({
 
           {/* ── BRIEF tab ─────────────────────────────────────── */}
           {intelTab === 'brief' && (
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-              <MorningBriefPanel brief={morningBrief} pending={briefPending} loading={briefLoading} />
-              <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Morning brief — scrollable, takes remaining space */}
+              <div style={{ flex: '1 1 0', overflowY: 'auto', minHeight: 60 }}>
+                <MorningBriefPanel brief={morningBrief} pending={briefPending} loading={briefLoading} />
+              </div>
+              {/* Entity graph — fixed-height section below brief */}
+              <div style={{
+                flexShrink: 0,
+                borderTop: '1px solid var(--border)',
+                overflowY: 'auto',
+                maxHeight: 420,
+              }}>
                 <EntityGraph graph={entityGraph} pending={graphPending} loading={graphLoading} slug={slug} />
               </div>
             </div>

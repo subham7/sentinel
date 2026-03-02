@@ -18,7 +18,7 @@ export default function MorningBriefPanel({ brief, pending, loading }: Props) {
   const mono: React.CSSProperties = { fontFamily: "'Share Tech Mono', monospace" }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', ...mono }}>
+    <div style={{ padding: '8px 12px', ...mono }}>
       {/* Header */}
       <div style={{
         fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
