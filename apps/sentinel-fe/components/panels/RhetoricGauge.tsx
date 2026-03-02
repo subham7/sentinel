@@ -9,27 +9,48 @@ interface Props {
 }
 
 const LABEL_COLORS: Record<string, string> = {
-  ROUTINE:    '#22c55e',
-  ELEVATED:   '#eab308',
-  THREATENING:'#f97316',
-  CRISIS:     '#ef4444',
-  IMMINENT:   '#dc2626',
+  ROUTINE:     '#22c55e',
+  ELEVATED:    '#eab308',
+  THREATENING: '#f97316',
+  CRISIS:      '#ef4444',
+  IMMINENT:    '#dc2626',
 }
 
-// Semicircular gauge via SVG arc
-// 0 = left (score 0), 180° = right (score 100)
-function polarToXY(angleDeg: number, r: number, cx: number, cy: number) {
-  const rad = (angleDeg - 180) * (Math.PI / 180)
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+// ── Gauge geometry ─────────────────────────────────────────────────────────
+// Semicircle: left = score 0, top = score 50, right = score 100
+// SVG y increases downward, so "up" = decreasing y
+
+const W  = 160
+const H  = 84
+const CX = W / 2         // 80
+const CY = H - 14        // 70 — pivot near bottom, leaving room for scale labels
+const R  = 52            // arc radius
+
+// Convert score 0–100 to a point on the semicircle arc
+// score=0  → left  (CX-R, CY)
+// score=50 → top   (CX,   CY-R)
+// score=100 → right (CX+R, CY)
+function scoreToPoint(score: number) {
+  const angle = Math.PI * (1 - score / 100)   // PI (left) → 0 (right)
+  return {
+    x: CX + R * Math.cos(angle),
+    y: CY - R * Math.sin(angle),   // minus because SVG y is inverted
+  }
 }
 
-function arcPath(score: number, cx: number, cy: number, r: number): string {
-  const clampedScore = Math.min(100, Math.max(0, score))
-  const angleDeg = (clampedScore / 100) * 180  // 0° (left) → 180° (right)
-  const start    = polarToXY(0, r, cx, cy)
-  const end      = polarToXY(angleDeg, r, cx, cy)
-  const largeArc = angleDeg > 90 ? 1 : 0
-  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`
+const leftPt  = scoreToPoint(0)    // (CX-R, CY)
+const rightPt = scoreToPoint(100)  // (CX+R, CY)
+
+// Full semicircle track: left → right going counterclockwise (upward via top)
+// sweep-flag=0 = CCW in SVG (y-down) = goes through the TOP ✓
+const TRACK_PATH = `M ${leftPt.x} ${leftPt.y} A ${R} ${R} 0 0 0 ${rightPt.x} ${rightPt.y}`
+
+// Filled arc from left to score position (always CCW = top arc, always < 180°)
+function fillPath(score: number): string {
+  if (score <= 0) return ''
+  const end = scoreToPoint(Math.min(score, 100))
+  // largeArc=0: arc swept is ≤ 180°, sweep=0 (CCW = top arc)
+  return `M ${leftPt.x} ${leftPt.y} A ${R} ${R} 0 0 0 ${end.x} ${end.y}`
 }
 
 export default function RhetoricGauge({ data, pending, loading }: Props) {
@@ -42,81 +63,110 @@ export default function RhetoricGauge({ data, pending, loading }: Props) {
     }}>
       <div style={{
         fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
-        textTransform: 'uppercase', marginBottom: 6,
+        textTransform: 'uppercase', marginBottom: 4,
       }}>
         ◈ Rhetoric Gauge
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em', padding: '4px 0' }}>
           // SCORING...
         </div>
       ) : pending || !data ? (
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+        <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.08em', padding: '4px 0' }}>
           // NO TELEGRAM DATA
         </div>
       ) : (() => {
-        const cx = 80
-        const cy = 64
-        const r  = 54
-        const trackPath = `M ${polarToXY(0, r, cx, cy).x} ${polarToXY(0, r, cx, cy).y} A ${r} ${r} 0 1 1 ${polarToXY(180, r, cx, cy).x} ${polarToXY(180, r, cx, cy).y}`
-        const fillPath  = arcPath(data.score, cx, cy, r)
         const labelColor = LABEL_COLORS[data.label] ?? '#94a3b8'
-        const needlePt  = polarToXY((data.score / 100) * 180, r * 0.85, cx, cy)
+        const needlePt   = scoreToPoint(data.score)
+        // Shorten needle slightly so it ends inside the arc
+        const needleLen  = R * 0.82
+        const angle      = Math.PI * (1 - data.score / 100)
+        const needleEnd  = {
+          x: CX + needleLen * Math.cos(angle),
+          y: CY - needleLen * Math.sin(angle),
+        }
 
         return (
           <div>
-            <svg width={160} height={72} style={{ display: 'block', margin: '0 auto' }}>
-              {/* Background track */}
+            <svg
+              width={W}
+              height={H}
+              style={{ display: 'block', margin: '0 auto', overflow: 'visible' }}
+            >
+              {/* Background track (full semicircle) */}
               <path
-                d={trackPath}
+                d={TRACK_PATH}
                 fill="none"
                 stroke="rgba(255,255,255,0.08)"
                 strokeWidth={8}
                 strokeLinecap="round"
               />
-              {/* Filled arc */}
-              <path
-                d={fillPath}
-                fill="none"
-                stroke={labelColor}
-                strokeWidth={8}
-                strokeLinecap="round"
-                opacity={0.85}
-              />
+
+              {/* Filled arc (score) */}
+              {data.score > 0 && (
+                <path
+                  d={fillPath(data.score)}
+                  fill="none"
+                  stroke={labelColor}
+                  strokeWidth={8}
+                  strokeLinecap="round"
+                  opacity={0.85}
+                />
+              )}
+
               {/* Needle */}
               <line
-                x1={cx}
-                y1={cy}
-                x2={needlePt.x}
-                y2={needlePt.y}
+                x1={CX} y1={CY}
+                x2={needleEnd.x} y2={needleEnd.y}
                 stroke={labelColor}
                 strokeWidth={1.5}
                 strokeLinecap="round"
               />
-              <circle cx={cx} cy={cy} r={3} fill={labelColor} />
-              {/* Score label */}
+              <circle cx={CX} cy={CY} r={3.5} fill={labelColor} />
+
+              {/* Score number (above needle pivot) */}
               <text
-                x={cx}
-                y={cy - 10}
+                x={CX}
+                y={CY - R * 0.38}
                 textAnchor="middle"
-                fontSize={18}
+                fontSize={20}
                 fontWeight={700}
                 fill={labelColor}
                 fontFamily="Orbitron, monospace"
               >
                 {data.score}
               </text>
-              {/* Scale labels */}
-              <text x={8}   y={cy + 14} fontSize={7} fill="rgba(255,255,255,0.3)" fontFamily="Share Tech Mono, monospace">0</text>
-              <text x={142} y={cy + 14} fontSize={7} fill="rgba(255,255,255,0.3)" fontFamily="Share Tech Mono, monospace">100</text>
+
+              {/* Scale labels at the ends of the arc */}
+              <text
+                x={leftPt.x + 2}
+                y={CY + 12}
+                textAnchor="start"
+                fontSize={7}
+                fill="rgba(255,255,255,0.25)"
+                fontFamily="Share Tech Mono, monospace"
+              >
+                0
+              </text>
+              <text
+                x={rightPt.x - 2}
+                y={CY + 12}
+                textAnchor="end"
+                fontSize={7}
+                fill="rgba(255,255,255,0.25)"
+                fontFamily="Share Tech Mono, monospace"
+              >
+                100
+              </text>
             </svg>
 
-            <div style={{ textAlign: 'center', marginTop: -2 }}>
+            {/* Label badge */}
+            <div style={{ textAlign: 'center', marginTop: 2 }}>
               <span style={{
                 fontSize: 10, color: labelColor, letterSpacing: '0.12em',
                 textTransform: 'uppercase',
-                padding: '1px 6px',
+                padding: '2px 8px',
                 background: `${labelColor}18`,
                 border: `1px solid ${labelColor}44`,
                 borderRadius: 2,
@@ -125,6 +175,7 @@ export default function RhetoricGauge({ data, pending, loading }: Props) {
               </span>
             </div>
 
+            {/* Key phrases */}
             {data.key_phrases.length > 0 && (
               <div style={{ marginTop: 6 }}>
                 {data.key_phrases.slice(0, 3).map(phrase => (
