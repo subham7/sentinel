@@ -697,7 +697,7 @@ dashboards open with correct map positions. Static overlays visible. Zero real d
 
 **Backend:**
 - Single `adsb.worker.ts` iterates all enabled conflicts, queries adsb.fi + airplanes.live
-- ADSBx hex DB (`basic-ac-db.json.gz`) loaded once at startup, shared across all conflicts
+- IsaBx hex DB (`basic-ac-db.json.gz`) loaded once at startup, shared across all conflicts
 - hexdb.io enrichment for unrecognised hexes
 - Full classification pipeline: hex lookup → ICAO type code → callsign pattern → side
 - Per-conflict Redis keys: `aircraft:us-iran`, `aircraft:israel-gaza`
@@ -1068,3 +1068,1036 @@ npm run build
 ---
 
 *Last updated: Phase 7 complete — all phases done.*
+
+# SENTINEL — Phase 8 Development Plan
+
+> **Status:** Phase 7 ✅ complete. Phase 8 begins here.
+> **Scope:** Satellite imagery layer · Home page widget expansion ·
+> AI intelligence features · Telegram media scraping & display ·
+> Advanced map capabilities
+>
+> Every task below is scoped to SENTINEL's existing stack:
+> TypeScript · Next.js 15 App Router · Fastify · MapLibre + deck.gl ·
+> Redis (Upstash) · SQLite · Zustand · Groq + Claude. Architecture
+> principles from Phases 0–7 apply unchanged.
+
+---
+
+## Phase 8 Overview
+
+Phase 8 transforms SENTINEL from a data tracker into a **full-spectrum intelligence
+terminal**. It is split into five sub-phases that can be worked in parallel by
+different contributors, though the recommended order is listed below:
+
+| Sub-phase | Track | Effort | Value |
+|---|---|---|---|
+| 8A | Satellite Imagery Layer | 3–5 days | Immediate visual differentiation |
+| 8B | Home Page Widget Expansion | 4–6 days | Engagement + retention |
+| 8E | Advanced Map Capabilities | 1–2 weeks | Analyst-grade map tools |
+| 8D | Telegram Media Feed | 1–2 weeks | OSINT depth |
+| 8C | AI Intelligence Features (last) | 1–2 weeks | Core intelligence product |
+
+---
+
+## Phase 8A — Satellite Imagery Layer
+
+**Goal:** Users can overlay near-real-time satellite imagery and thermal
+anomaly detection on any theater map. No infrastructure required for the
+first integration — NASA GIBS tiles are unauthenticated and browser-direct.
+
+### New files
+
+```
+apps/sentinel-fe/components/map/layers/
+  SatelliteLayer.tsx          # MapLibre raster tile layer switcher
+  ThermalLayer.tsx            # NASA FIRMS WMS overlay
+  SatelliteDatePicker.tsx     # Date input that updates tile URL
+  BeforeAfterSlider.tsx       # maplibre-gl-compare-plus swipe widget
+
+apps/sentinel-api/src/workers/
+  stac.worker.ts              # Element84 Earth Search: discover Sentinel-2 scenes
+
+apps/sentinel-api/src/routes/
+  satellite.ts                # GET /api/conflicts/:slug/satellite/scenes
+```
+
+### New dependencies
+
+```bash
+# Frontend
+npm install maplibre-gl-compare-plus leaflet-side-by-side
+# (for STAC discovery + TiTiler — backend only)
+# TiTiler: deploy as Docker sidecar, no npm package
+```
+
+### New env variables
+
+```bash
+FIRMS_MAP_KEY=          # firms.modaps.eosdis.nasa.gov — free registration
+SENTINEL_HUB_CLIENT_ID=      # dataspace.copernicus.eu — free tier
+SENTINEL_HUB_CLIENT_SECRET=  # dataspace.copernicus.eu
+```
+
+### Tasks
+
+#### 8A-1 — NASA GIBS tile layer (hours, zero auth)
+
+Add three new satellite base layers to the `LayerControl` panel under a new
+group **SATELLITE**:
+
+```typescript
+// apps/sentinel-fe/components/map/layers/SatelliteLayer.tsx
+
+export const GIBS_LAYERS = {
+  trueColor: {
+    label: 'True Color (VIIRS)',
+    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/{date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
+  },
+  nightLights: {
+    label: 'Nighttime Lights',
+    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_DayNightBand_ENCC/default/{date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
+  },
+  thermal: {
+    label: 'Thermal Anomalies (VIIRS)',
+    url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_Thermal_Anomalies_375m_All/default/{date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.png',
+  },
+}
+```
+
+The `{date}` token is replaced client-side when the user changes the date
+picker. Default to yesterday UTC (GIBS has ~24h latency). Domain-shard
+tile fetches across `gibs.earthdata.nasa.gov` and `gibs-{a,b,c}.earthdata.nasa.gov`.
+
+When a GIBS satellite layer is active, render it below all OSINT/track
+layers but above the base CARTO tiles. Opacity slider (0.3–1.0) in the
+LayerControl panel for satellite layers.
+
+**Nighttime lights is the highest-intelligence layer** — power outages and
+infrastructure destruction are immediately visible as dark patches in
+formerly lit areas. Note this in the layer tooltip.
+
+#### 8A-2 — NASA FIRMS thermal WMS overlay (1 day)
+
+15-minute-latency thermal anomaly overlay via WMS (requires free MAP_KEY):
+
+```typescript
+// In SatelliteLayer.tsx
+const FIRMS_WMS = `https://firms.modaps.eosdis.nasa.gov/mapserver/wms/fires/${FIRMS_MAP_KEY}/?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=fires_viirs_noaa20_24&TIME={startDate}/{endDate}&BBOX={bbox}&WIDTH=256&HEIGHT=256&SRS=EPSG:3857`
+```
+
+Add this as a **FIRMS THERMAL (15 min)** sublayer under SATELLITE in LayerControl.
+FRP (Fire Radiative Power) values in the FIRMS legend distinguish military
+strikes from agricultural burns — note this in a tooltip: high-FRP point
+sources without vegetation context = likely munitions impact.
+
+#### 8A-3 — Date picker for historical imagery (half-day)
+
+```typescript
+// apps/sentinel-fe/components/map/layers/SatelliteDatePicker.tsx
+// Renders a date <input type="date"> in the LayerControl panel
+// Only visible when a GIBS satellite layer is active
+// Defaults to yesterday UTC
+// On change: updates tile layer URL param, triggers map tile refresh
+// Keyboard: ArrowLeft/ArrowRight step by ±1 day
+```
+
+Store selected satellite date in URL state alongside existing layer params:
+`?layers=aircraft,satellite_truecolor&satdate=2026-02-28`
+
+#### 8A-4 — Copernicus Sentinel Hub WMS (2–3 days)
+
+Register at `dataspace.copernicus.eu`, create a WMS configuration for
+Sentinel-2 L2A. Use OAuth2 client credentials flow in the API backend to
+mint short-lived tokens, proxied through:
+
+```
+GET /api/conflicts/:slug/satellite/wms-token   → { token, expires_at }
+```
+
+Frontend uses the token to call:
+```
+https://sh.dataspace.copernicus.eu/ogc/wms/{INSTANCE_ID}?
+  SERVICE=WMS&REQUEST=GetMap&LAYERS=TRUE_COLOR&TIME={date}
+  &BBOX={bounds}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true
+```
+
+This gives 10m resolution Sentinel-2 imagery — significantly sharper than
+GIBS VIIRS (375m) for targeted area inspection.
+
+#### 8A-5 — Before/after comparison slider (1 day)
+
+Install `maplibre-gl-compare-plus`. When a satellite layer is active, a
+**COMPARE MODE** toggle appears in the LayerControl. Activating it:
+
+1. Splits the map into two synchronized panels
+2. Left panel: user-selected "before" date
+3. Right panel: user-selected "after" date
+4. Draggable center divider
+5. Both panels share pan/zoom
+
+Use case: compare satellite imagery before and after a strike event. The
+`SatelliteDatePicker` shows two date inputs when compare mode is active.
+
+#### 8A-6 — STAC scene discovery API (1–2 days)
+
+`stac.worker.ts` polls Element84 Earth Search daily per conflict bbox,
+stores scene metadata (cloud cover, acquisition date, COG URL) in SQLite:
+
+```typescript
+// POST https://earth-search.aws.element84.com/v1/search
+{
+  "collections": ["sentinel-2-l2a"],
+  "bbox": [conflict.map.bounds.lonMin, conflict.map.bounds.latMin,
+           conflict.map.bounds.lonMax, conflict.map.bounds.latMax],
+  "datetime": "2026-01-01T00:00:00Z/..",
+  "query": { "eo:cloud_cover": { "lt": 20 } },
+  "sortby": [{ "field": "datetime", "direction": "desc" }],
+  "limit": 30
+}
+```
+
+New `GET /api/conflicts/:slug/satellite/scenes` endpoint returns a list of
+available low-cloud-cover scenes with dates. The `SatelliteDatePicker`
+highlights these dates in green so analysts know which dates have usable imagery.
+
+#### 8A-7 — LayerControl integration
+
+Add a **SATELLITE** group to `LayerControl.tsx` with sublayers:
+
+```
+▼ SATELLITE
+  ○ True Color (GIBS VIIRS)
+  ○ Nighttime Lights (GIBS VIIRS)
+  ○ Thermal Anomalies (FIRMS · 15 min)
+  ○ Sentinel-2 True Color (10m · Copernicus)
+  ── Date: [2026-02-28] [◄ ►]    ← only when satellite layer active
+  ── [Compare Mode]               ← only when satellite layer active
+```
+
+**Definition of done — 8A:**
+- Toggling a GIBS layer renders satellite tiles on the theater map
+- Date picker changes tiles without full map reload
+- FIRMS thermal layer shows heat signatures over known strike areas
+- Before/after slider works on Sentinel-2 layers
+- STAC scene discovery shows available dates in date picker
+
+---
+
+## Phase 8B — Home Page Widget Expansion
+
+**Goal:** The `/conflicts` home page becomes a live global intelligence
+overview, not just a conflict directory. Add five high-impact widgets that
+give analysts a reason to land here daily.
+
+### New files
+
+```
+apps/sentinel-fe/components/home/
+  GlobalIncidentCounter.tsx   # Animated live event counters
+  ThreatSparklines.tsx        # 7/30-day trend per theater
+  ThreatRadar.tsx             # Multi-axis spider chart per conflict
+  GlobalChoropleth.tsx        # Country-level conflict intensity world map
+  DiplomaticTimeline.tsx      # Upcoming events / ceasefire countdowns
+  HomeWidgetGrid.tsx          # react-grid-layout container
+```
+
+### New dependencies
+
+```bash
+npm install react-countup framer-motion recharts @tremor/react react-grid-layout
+```
+
+### Tasks
+
+#### 8B-1 — Animated incident counters (1–2 days)
+
+Place at the top of `/conflicts` above the globe, styled as a terminal
+status bar matching the military aesthetic:
+
+```
+[ ACTIVE THEATERS: 3 ]  [ 24H INCIDENTS: 1,247 ]  [ LIVE TRACKS: 89 ]  [ VESSELS DARK: 12 ]
+```
+
+Implementation: push updated totals via the existing Socket.IO connection
+every 30s. Client-side `react-countup` with `enableScrollSpy={false}` and
+`duration={0.8}` animates between values as they tick up. Use
+`framer-motion`'s `useSpring` for a slot-machine digit effect on the
+24H INCIDENTS counter (highest-signal metric).
+
+Values source:
+- **Active theaters**: `ALL_CONFLICTS.filter(c => c.status === 'active').length`
+- **24H incidents**: `SELECT COUNT(*) FROM incidents WHERE timestamp > NOW()-86400`
+- **Live tracks**: sum of aircraft + vessel counts across all Redis keys
+- **Vessels dark**: `SELECT COUNT(*) FROM ais_dark_events WHERE gap_ended_at IS NULL`
+
+#### 8B-2 — Escalation sparklines per theater (2–3 days)
+
+Below each conflict card on the home page, add a 30-day incident trend
+sparkline using `@tremor/react`'s `SparkAreaChart`:
+
+```typescript
+// apps/sentinel-fe/components/home/ThreatSparklines.tsx
+// Data: GET /api/conflicts/:slug/incidents?hours=720&groupBy=day
+// Returns: [{ date: '2026-02-01', count: 47, avgSeverity: 3.2 }, ...]
+// Render: SparkAreaChart, color = conflict.card.accentColor
+// Tooltip: "Feb 1 · 47 events · avg severity 3.2"
+```
+
+Add a new backend endpoint to support this:
+```
+GET /api/conflicts/:slug/incidents/trend?days=30
+→ [{ date: string; count: number; avgSeverity: number }]
+```
+Cached in Redis at `incidents:trend:{slug}` TTL 1h.
+
+#### 8B-3 — Threat radar chart per conflict (2 days)
+
+Replace the static intensity bar on each conflict card with a 6-axis
+`RadarChart` (Recharts) that shows current threat composition at a glance:
+
+```
+Axes: Military Activity · Diplomatic Tension · Cyber / Comms ·
+      Economic Pressure · Humanitarian · Information Warfare
+```
+
+Scores (0–100) are computed browser-side from incident categories in the
+last 7 days, mapped to CAMEO event codes already stored per incident.
+The previous week's scores render as a second semi-transparent `<Radar>`
+series for visual trend comparison.
+
+Color: primary series = `conflict.card.accentColor`, secondary = same at
+30% opacity. Chart background: `--bg-surface`. No chart grid lines — use
+custom `PolarGrid` with `--border` color.
+
+#### 8B-4 — Global conflict choropleth (3–4 days)
+
+Replace the globe's plain base map with a choropleth layer showing global
+conflict intensity. Render below conflict zone polygons, above base tiles.
+
+```typescript
+// Data: UCDP GED API — no auth required
+// GET https://ucdpapi.pcr.uu.se/api/gedevents/25.1?pagesize=1&StartDate=2025-01-01
+// Country-level incident counts → intensity bucket (0-4)
+// Render as MapLibre fill layer on Natural Earth country polygons
+// Color scale: transparent (0) → amber (1) → orange (2) → red (3) → crimson (4)
+// Opacity: 0.3 — subtle background, not distracting from active conflicts
+```
+
+Cache UCDP data at `GET /api/intel/global-intensity` TTL 24h.
+
+Countries with active SENTINEL conflict configs render at higher opacity and
+with the `conflict.card.accentColor` pulsing border, not the UCDP color.
+
+#### 8B-5 — Diplomatic event timeline (1–2 days)
+
+A horizontal scrolling timeline at the bottom of the home page showing
+upcoming events and active ceasefire countdowns:
+
+```
+[●] UNSC Vote — Syria         in 14h
+[●] US–Iran Nuke Talks         Feb 28 (2 days)
+[►] Gaza Ceasefire Phase 2     EXPIRES in 3d 14h 22m  ← countdown, amber if <48h, red if <12h
+[◌] IAEA Inspection — Natanz   Mar 15
+```
+
+Data source: manually curated entries in `packages/shared/diplomatic-events.ts`
+(an array of `{title, date, type, conflictSlug, countdownEnabled}` objects).
+Any contributor can add events with a PR. Countdown timers run client-side.
+This is a high-signal feature that requires zero API integration.
+
+#### 8B-6 — Draggable widget grid (optional, 2 days)
+
+Wrap all home page components in a `react-grid-layout` grid so analysts can
+rearrange and resize widgets. Save layout to `localStorage` under
+`sentinel:home-layout`. Provide a **Reset Layout** button. This is low
+priority but architecturally clean to add now before the home page grows
+further.
+
+**Definition of done — 8B:**
+- `/conflicts` shows live event counters that animate on each update
+- Each conflict card has a 30-day sparkline and 6-axis radar chart
+- Globe has global choropleth background layer
+- Diplomatic timeline shows at least 3 real upcoming events
+
+---
+
+## Phase 8C — AI Intelligence Features
+
+**Goal:** Structured intelligence pipeline. ConfliBERT NER, automated
+morning brief, escalation anomaly detection, entity relationship graph.
+
+### New files
+
+```
+apps/sentinel-api/src/services/
+  ner.service.ts             # HTTP client → Python NER microservice
+  anomaly.service.ts         # Z-score + spike detection on incident timeseries
+  entity-graph.service.ts    # Build actor relationship graph from incidents
+
+apps/sentinel-api/src/workers/
+  morning-brief.worker.ts    # 06:00 UTC daily SITREP with BLUF format
+  ner-enrichment.worker.ts   # Background NER enrichment of raw incidents
+
+apps/sentinel-api/src/routes/
+  intel.ts                   # GET /api/conflicts/:slug/morning-brief
+                             # GET /api/conflicts/:slug/entity-graph
+                             # GET /api/conflicts/:slug/anomalies
+
+apps/sentinel-fe/components/panels/
+  MorningBriefPanel.tsx      # Daily BLUF intelligence brief
+  EntityGraph.tsx            # Cytoscape.js actor relationship graph
+  AnomalyBanner.tsx          # Spike detection alert banner above incident feed
+  RhetoricGauge.tsx          # Escalatory language temperature gauge
+
+services/
+  ner/                       # Python FastAPI microservice (separate Docker container)
+    main.py                  # ConfliBERT NER endpoint
+    requirements.txt
+    Dockerfile
+```
+
+### New dependencies
+
+```bash
+# Frontend
+npm install cytoscape cytoscape-d3-force
+
+# Python NER service (services/ner/)
+pip install fastapi uvicorn transformers torch spacy
+```
+
+### New env variables
+
+```bash
+NER_SERVICE_URL=http://ner-service:8001    # Internal Docker network URL
+```
+
+### Tasks
+
+#### 8C-1 — Morning brief (BLUF format) (2–3 days)
+
+`morning-brief.worker.ts` runs at **06:00 UTC daily** via a cron job (use
+`node-cron` already in the project). It calls Claude (`claude-sonnet-4-6`)
+with a structured prompt using the previous 24h of incident, aircraft, and
+vessel data per conflict.
+
+**BLUF format (ODNI standard):**
+```
+BOTTOM LINE UP FRONT
+One to two sentence key judgment. What matters most right now.
+
+KEY JUDGMENTS
+1. [HIGH CONFIDENCE] Assessment statement.
+2. [MODERATE CONFIDENCE] Assessment statement.
+3. [LOW CONFIDENCE] Assessment statement.
+
+EVIDENCE
+Brief factual summary of the data driving the above judgments.
+
+OUTLOOK (24–72h)
+What to watch. What could change the assessment.
+
+CONFIDENCE: HIGH | MODERATE | LOW
+SOURCES: ACLED (n=47), GDELT (n=312), ADS-B (n=23 tracks), Telegram (n=18)
+```
+
+Confidence language maps to ODNI ICD 203 probabilities:
+- **HIGH**: well-corroborated by 3+ independent sources
+- **MODERATE**: credible sourcing, some analytical gaps
+- **LOW**: fragmentary, significant assumptions required
+
+Cache at `morning-brief:{slug}:{YYYY-MM-DD}` TTL 23h (regenerates next day).
+
+`MorningBriefPanel.tsx` replaces or sits alongside `SitrepPanel.tsx`. The
+existing hourly sitrep retains its position; the morning brief is a
+separate, more formal panel accessible via a tab toggle.
+
+#### 8C-2 — ConfliBERT NER microservice (3–5 days)
+
+Create a standalone Python/FastAPI microservice in `services/ner/`:
+
+```python
+# services/ner/main.py
+from fastapi import FastAPI
+from transformers import pipeline
+
+app = FastAPI()
+
+# ConfliBERT: pre-trained on 33GB conflict/politics corpus (NAACL 2022)
+ner = pipeline("ner", model="snowood1/ConfliBERT-scr-uncased",
+               aggregation_strategy="simple")
+
+@app.post("/extract")
+async def extract_entities(text: str):
+    entities = ner(text[:512])
+    return {
+        "actors": [e["word"] for e in entities if e["entity_group"] in ("ORG","NORP","GPE")],
+        "locations": [e["word"] for e in entities if e["entity_group"] == "LOC"],
+        "events": [e["word"] for e in entities if e["entity_group"] == "EVENT"],
+        "weapons": [e["word"] for e in entities if e["entity_group"] in ("WEAPON","PRODUCT")]
+    }
+```
+
+`ner-enrichment.worker.ts` runs every 15 minutes, takes the 50 most recent
+unclassified incidents from SQLite, calls the NER service, and writes
+structured entity data back to a new `incident_entities` table:
+
+```sql
+CREATE TABLE incident_entities (
+  incident_id   TEXT REFERENCES incidents(id),
+  entity_type   TEXT,  -- 'actor' | 'location' | 'weapon' | 'event'
+  entity_value  TEXT,
+  confidence    REAL,
+  PRIMARY KEY (incident_id, entity_type, entity_value)
+);
+```
+
+This powers the entity graph (8C-3) and improves analyst chat context.
+
+#### 8C-3 — Entity relationship graph (3–4 days)
+
+`entity-graph.service.ts` builds a graph from the last 30 days of incident
+entities. Nodes: state actors (large), armed groups (medium), individuals
+(small). Edges: co-occurrence in same incident (weight = frequency).
+
+```
+GET /api/conflicts/:slug/entity-graph
+→ {
+    nodes: [{ id, label, type, frequency, color }],
+    edges: [{ source, target, weight, eventTypes }]
+  }
+```
+
+`EntityGraph.tsx` renders with Cytoscape.js + `cytoscape-d3-force` layout:
+
+```typescript
+// Node colors: derive from conflict.parties[].color for known actors
+// Unknown: --text-secondary
+// Layout: force-directed, gravity 0.3, node repulsion 4500
+// Click node: flies incident feed to filter by that actor
+// Edge thickness: proportional to co-occurrence count
+// Edge color: red if event_types include 'armed_conflict', blue if 'diplomatic'
+```
+
+Accessible via a new **ENTITY GRAPH** tab in the sidebar panel area.
+
+#### 8C-4 — Z-score anomaly detection (1–2 days)
+
+`anomaly.service.ts` runs browser-side (TypeScript, no backend compute),
+extending the existing `military-surge.ts` pattern:
+
+```typescript
+// Compute rolling 30-day mean + std of daily event counts
+// Flag if today's count > mean + (2.5 × std) → SPIKE alert
+// Flag if 7-day trend slope > 3× historical average → SURGE alert
+// Flag if event_type proportion shifts significantly → TYPE CHANGE alert
+```
+
+`AnomalyBanner.tsx` renders above `IncidentFeed.tsx` when anomalies are
+detected:
+
+```
+⚠ INCIDENT SPIKE DETECTED — us-iran · 3.2σ above 30-day baseline (↑214% in 6h)
+```
+
+Color: `--sev-high` (#f97316) background at 15% opacity, full-color border.
+Dismissible per session. Feeds into the `FLASH`/`IMMEDIATE` alert tier from
+the Phase 7 architecture.
+
+#### 8C-5 — Rhetoric temperature gauge (2 days)
+
+`RhetoricGauge.tsx` is a semi-circular speedometer widget (matching the
+design reference's gauge aesthetic) that shows escalatory language
+temperature for each conflict.
+
+Data pipeline:
+1. `telegram.worker.ts` already scrapes official channel text
+2. New `rhetoric.service.ts` (browser-side): calls Claude Haiku via a new
+   `POST /api/conflicts/:slug/rhetoric` endpoint with the last 24h of
+   official channel posts, scoring 0–100 on an escalatory language rubric
+3. Score cached at `rhetoric:{slug}` TTL 4h
+4. Widget shows current score, 7-day sparkline, key phrases driving the score
+
+Rubric anchors: 0=routine, 25=elevated, 50=threatening, 75=crisis, 100=imminent.
+
+**Definition of done — 8C:**
+- Morning brief panel shows a BLUF-formatted daily assessment for each conflict
+- NER service runs and enriches new incidents within 15 minutes of ingestion
+- Entity graph renders and updates daily
+- Anomaly banner triggers correctly during test spike injection
+- Rhetoric gauge renders with live score
+
+---
+
+## Phase 8D — Telegram Media Feed
+
+**Goal:** Photos and videos from monitored Telegram channels appear in the
+dashboard as a media intelligence feed. Metadata (channel, timestamp, geotag
+if present) is displayed alongside each item.
+
+### New files
+
+```
+apps/sentinel-api/src/services/
+  telegram-media.service.ts  # Media download, hash, upload to R2
+
+apps/sentinel-api/src/workers/
+  telegram-media.worker.ts   # Background media extraction from new posts
+
+apps/sentinel-api/src/routes/
+  media.ts                   # GET /api/conflicts/:slug/media
+
+apps/sentinel-fe/components/panels/
+  MediaFeed.tsx              # Masonry grid media gallery with lightbox
+  MediaCard.tsx              # Individual media item card
+
+apps/sentinel-fe/hooks/
+  useMediaFeed.ts            # Paginated media fetch + SSE updates
+```
+
+### New dependencies
+
+```bash
+# Backend
+npm install @mtcute/node @aws-sdk/client-s3 sharp fluent-ffmpeg ffmpeg-static exifr
+
+# Frontend
+npm install react-masonry-css lightgallery react-player
+```
+
+### New env variables
+
+```bash
+# Telegram MTProto (my.telegram.org/apps — free registration)
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+TELEGRAM_SESSION_STRING=    # Serialized session (generate once via CLI helper)
+
+# Cloudflare R2 (zero egress cost vs S3)
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=sentinel-media
+R2_PUBLIC_URL=              # Public bucket URL for CDN delivery
+```
+
+### New database schema
+
+```sql
+-- apps/sentinel-api/src/db/schema.sql — append to existing schema
+
+CREATE TABLE telegram_media (
+  id              TEXT PRIMARY KEY,       -- '{channel}:{message_id}:{type}:{index}'
+  conflict_slug   TEXT NOT NULL,
+  channel         TEXT NOT NULL,
+  message_id      TEXT NOT NULL,
+  media_type      TEXT NOT NULL,          -- 'photo' | 'video' | 'document'
+  r2_key          TEXT NOT NULL,          -- Storage key in R2
+  thumbnail_key   TEXT,                   -- WebP thumbnail key in R2
+  width           INTEGER,
+  height          INTEGER,
+  duration_secs   INTEGER,                -- video only
+  file_size       INTEGER,
+  phash           TEXT,                   -- perceptual hash for dedup
+  exif_lat        REAL,                   -- GPS if present
+  exif_lon        REAL,
+  posted_at       TEXT NOT NULL,
+  caption         TEXT,
+  view_count      INTEGER,
+  forward_count   INTEGER,
+  nsfw_score      REAL,                   -- NSFWJS classification
+  is_visible      INTEGER DEFAULT 1,      -- 0 = filtered/hidden
+  created_at      INTEGER DEFAULT (unixepoch())
+);
+
+CREATE INDEX idx_telegram_media_conflict ON telegram_media(conflict_slug, posted_at DESC);
+CREATE INDEX idx_telegram_media_geo ON telegram_media(exif_lat, exif_lon)
+  WHERE exif_lat IS NOT NULL;
+```
+
+### Tasks
+
+#### 8D-1 — MTProto media extraction (3–4 days)
+
+Migrate the existing `telegram.worker.ts` HTML scraper to MTProto for
+media-capable channels. Keep the HTML scraper as a fallback for channels
+where MTProto fails.
+
+```typescript
+// apps/sentinel-api/src/workers/telegram-media.worker.ts
+import { TelegramClient } from '@mtcute/node'
+
+const client = new TelegramClient({
+  apiId: parseInt(process.env.TELEGRAM_API_ID),
+  apiHash: process.env.TELEGRAM_API_HASH,
+  storage: 'session.bin',
+})
+
+// For each new post with media:
+// 1. Download to Buffer (max 50MB per file)
+// 2. For photos: Sharp resize to max 1920px wide, convert to WebP
+//    + generate 400px thumbnail (WebP)
+// 3. For videos: ffmpeg extract frame at 1s for thumbnail (WebP)
+//    + transcode to H.264 MP4 with -movflags +faststart for web streaming
+// 4. Check phash (via sharp-phash) against last 7-day hashes in Redis
+//    → skip if Hamming distance < 5 (near-duplicate)
+// 5. Run NSFWJS on thumbnail (TensorFlow.js in Node.js)
+//    → set is_visible = 0 if nsfw_score > 0.6
+// 6. Extract EXIF via exifr: lat/lon if present
+// 7. Upload original + thumbnail to R2 via S3 SDK
+// 8. INSERT into telegram_media
+```
+
+Rate limiting: 2s delay between media downloads. Max 20 files per polling
+cycle to avoid hitting Telegram rate limits. Circuit breaker: if 3 consecutive
+download failures, pause for 10 minutes.
+
+#### 8D-2 — Media API endpoint (half-day)
+
+```typescript
+// apps/sentinel-api/src/routes/media.ts
+// GET /api/conflicts/:slug/media
+// Query params: page (default 1), limit (default 24), type ('photo'|'video'|'all')
+// Returns: { items: TelegramMedia[], total: number, hasMore: boolean }
+// Cache: Redis key media:{slug}:page:{n} TTL 5 minutes
+
+// SSE: /api/conflicts/:slug/media/stream
+// Pushes new media items as they are ingested (same pattern as incidents/stream)
+```
+
+#### 8D-3 — Media feed UI (2–3 days)
+
+`MediaFeed.tsx` renders as a new **MEDIA** tab in the sidebar panel area
+(alongside INCIDENTS, TRACKS, ENTITY GRAPH):
+
+```typescript
+// Masonry grid: react-masonry-css, 2 columns at panel width
+// Each item: MediaCard.tsx
+//   - Thumbnail image (lazy-loaded, WebP)
+//   - Channel avatar + name (truncated to 12 chars)
+//   - Timestamp (relative: "14 min ago", hover shows UTC)
+//   - Caption truncated to 2 lines, expand on hover
+//   - Geotag pin icon if exif_lat present (click flies map to location)
+//   - Video: play button overlay + duration badge
+//   - View/forward count badges (muted, bottom-right)
+//
+// Click photo: LightGallery lightbox with zoom
+// Click video: react-player inline at full panel width
+//
+// Virtualization: @tanstack/react-virtual (already installed)
+// Infinite scroll: load next page when last item enters viewport
+```
+
+Media cards use the same panel aesthetic as the incident feed:
+- `--bg-surface` background, `--border` border, `4px` border-radius
+- No box shadows — borders only
+- Hover: `--bg-overlay` background
+
+#### 8D-4 — Map integration for geotagged media (1 day)
+
+If `exif_lat` / `exif_lon` are present on a media item, render a camera
+icon marker on the theater map in a new **MEDIA LOCATIONS** layer group.
+
+```typescript
+// New layer: apps/sentinel-fe/components/map/layers/MediaLayer.tsx
+// IconLayer: camera icon, --text-secondary color, 16px
+// Click: opens MediaCard in a popup (same popup style as incident popups)
+// Only renders when MEDIA LOCATIONS layer is toggled on
+// Layer added to LayerControl under new MEDIA group
+```
+
+**Definition of done — 8D:**
+- New Telegram posts with media appear in the Media Feed within 5 minutes
+- Duplicate images are suppressed (phash dedup)
+- NSFW content is hidden by default
+- Geotagged media appears as map markers
+- Video plays inline in the panel
+
+---
+
+## Phase 8E — Advanced Map Capabilities
+
+**Goal:** Analyst-grade map tools: incident heatmap, geofenced alerts,
+frontline visualization, aircraft trail history, maritime intelligence layers.
+
+### New files
+
+```
+apps/sentinel-fe/components/map/layers/
+  HeatmapLayer.tsx           # deck.gl HeatmapLayer (replaces/enhances existing)
+  FrontlineLayer.tsx         # Territory control polygons
+  MediaLayer.tsx             # Geotagged Telegram media (from 8D-4)
+  ADIZLayer.tsx              # Air Defense Identification Zones
+  WeaponRangeLayer.tsx       # Declared weapons ranges (extends BasesLayer)
+
+apps/sentinel-fe/services/
+  geofence.service.ts        # Turf.js geofenced alert zones
+  trail-history.service.ts   # ADS-B/AIS trail management (Redis sorted sets)
+  pattern-detection.ts       # Holding pattern + STS transfer detection
+
+packages/shared/
+  frontlines.ts              # GeoJSON frontline data per conflict
+  adiz.ts                    # ADIZ boundary GeoJSON
+```
+
+### New dependencies
+
+```bash
+npm install @turf/turf rbush @deck.gl/geo-layers
+# deck.gl already installed; add geo-layers subpackage for TripsLayer
+```
+
+### Tasks
+
+#### 8E-1 — Incident density heatmap (hours)
+
+Enhance the existing `HeatmapLayer.tsx` (Phase 3) with time-windowed weights:
+
+```typescript
+// deck.gl HeatmapLayer with:
+// - weightsTextureSize: 512 (higher resolution)
+// - intensity: 1.5
+// - radiusPixels: 40
+// - colorRange: 6-stop scale from transparent → --sev-critical
+// - Data: incidents filtered by active time window
+// Time window selector in LayerControl: 24h | 7d | 30d | All
+// Weight = incident.severity (1–5), so sev-5 events glow 5× brighter
+```
+
+#### 8E-2 — Turf.js geofenced alert zones (1–2 days)
+
+Analysts can draw custom alert zones on the map that trigger WebSocket
+alerts when aircraft or vessels enter/exit.
+
+```typescript
+// apps/sentinel-fe/services/geofence.service.ts
+// Uses @turf/boolean-point-in-polygon + rbush R-tree for performance
+// State: stored in Zustand + URL-encoded as base64 GeoJSON in ?geofences= param
+// UI: click "Draw Zone" → MapLibre draw mode → creates polygon
+//     polygon renders as dashed amber border, transparent fill
+//     right-click polygon → delete, edit name, set alert severity
+
+// On each aircraft/vessel WebSocket update:
+//   for each geofence: check if asset was outside, now inside → ENTER event
+//   distribute via existing alert tier system (IMMEDIATE for military aircraft)
+```
+
+#### 8E-3 — Aircraft trail history with deck.gl TripsLayer (1–2 days)
+
+Replace the existing `PathLayer` trail (20-position static) with a
+`TripsLayer` that shows animated, time-fading trails:
+
+```typescript
+// @deck.gl/geo-layers TripsLayer
+// - fadeTrail: true
+// - trailLength: 180  (seconds of history shown)
+// - currentTime: animationTime (requestAnimationFrame counter)
+// - getTimestamps: d => d.trail.map(t => t.timestamp)
+// - getPath: d => d.trail.map(t => [t.lon, t.lat])
+// - getColor: d => partyColorMap[d.side]
+
+// Backend: GET /api/conflicts/:slug/aircraft/:icao24/trail?hours=4
+// Returns: { icao24, trail: [{ lat, lon, alt, ts }] }
+// Source: aircraft_trails SQLite table (already exists from Phase 1)
+```
+
+#### 8E-4 — Frontline / territorial control layer (2–3 days)
+
+Static GeoJSON frontline data in `packages/shared/frontlines.ts`:
+
+```typescript
+// Each conflict can have optional frontline data:
+// {
+//   conflictSlug: 'russia-ukraine',
+//   features: GeoJSON.Feature[],    // MultiPolygon per control zone
+//   updatedAt: '2026-02-28',
+//   source: 'DeepState Map',
+//   confidence: 'high' | 'medium' | 'low'
+// }
+
+// Render as MapLibre fill layer:
+// - Ukrainian control: #00b0ff at 15% opacity, solid border
+// - Russian control: #ef4444 at 15% opacity, solid border
+// - Contested: amber hatched SVG pattern
+// - Uncertainty band: turf.buffer(frontline, 5, 'km') at 5% opacity
+```
+
+Update `ConflictConfig` to support `overlays.frontlines?: FrontlineData`.
+Community contributors can submit frontline GeoJSON updates via PRs.
+
+#### 8E-5 — ADIZ and maritime boundary layers (1 day)
+
+Add pre-computed GeoJSON for:
+- **ADIZ boundaries**: Iran ADIZ, US CENTCOM-relevant ADIZs, Israeli airspace
+  Source: publicly available military geography, stored in `packages/shared/adiz.ts`
+- **EEZ / territorial waters**: 12NM + 24NM zones for Persian Gulf states
+  Source: MarineRegions.org shapefiles (CC BY 4.0), converted to GeoJSON
+- **Shipping lanes**: `newzealandpaul/Shipping-Lanes` dataset
+
+Add as togglable layers under **GEOGRAPHY** in LayerControl:
+```
+▼ GEOGRAPHY (existing)
+  ✓ Military Bases
+  ✓ Shipping Lanes
+  □ Frontlines / Control Zones    ← new
+  □ ADIZ Boundaries               ← new
+  □ EEZ / Maritime Zones          ← new
+  □ Media Locations               ← from 8D-4
+```
+
+#### 8E-6 — AIS ship-to-ship transfer detection (1–2 days)
+
+Extend `vessel-id.service.ts` with STS detection heuristics:
+
+```typescript
+// apps/sentinel-api/src/services/vessel-id.ts — add to existing
+function detectShipToShip(vessels: Vessel[]): STSEvent[] {
+  // For each pair of vessels:
+  // 1. Both speed-over-ground < 1 knot (effectively stopped)
+  // 2. Distance between them < 500m for > 2 hours
+  // 3. At least one is a tanker (AIS type 80–89)
+  // 4. Location: not a known port (check against port GeoJSON)
+  // → Flag as probable STS transfer
+  // Write to new ais_sts_events table
+  // Push as PRIORITY alert via existing alert tier
+}
+```
+
+Render STS events as a link icon between the two vessel markers on the map.
+
+#### 8E-7 — Web Push notifications for FLASH alerts (1–2 days)
+
+```typescript
+// apps/sentinel-api: npm install web-push
+// Generate VAPID keys once: npx web-push generate-vapid-keys → add to .env
+
+// New route: POST /api/push/subscribe → store PushSubscription in SQLite
+// New route: DELETE /api/push/subscribe → remove subscription
+
+// When a FLASH-tier alert fires, call:
+//   webpush.sendNotification(subscription, JSON.stringify({
+//     title: 'SENTINEL FLASH',
+//     body: alertMessage,
+//     icon: '/icon-512.png',
+//     data: { conflictSlug, incidentId }
+//   }))
+
+// Frontend: register Service Worker in layout.tsx
+// Show permission prompt after user's 3rd session (not on first visit)
+// Notification click → navigate to /conflicts/{slug}#incident/{id}
+```
+
+Add `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to `.env.example`.
+
+**Definition of done — 8E:**
+- Heatmap time-window selector works
+- Drawing a geofence and triggering it with a test aircraft fires an alert
+- Aircraft trails animate with time-fading via TripsLayer
+- Frontline layer renders for russia-ukraine
+- ADIZ and maritime boundary layers toggle correctly
+- STS detection flags appear on sanctioned tankers in the Persian Gulf test data
+- Push notification arrives on desktop after subscribing
+
+---
+
+## Phase 8 — Updated CLAUDE.md Sections
+
+### Updated tech stack entries
+
+Append to the **Tech Stack** table in CLAUDE.md:
+
+| Layer | Technology |
+|---|---|
+| Satellite imagery | NASA GIBS (no auth) + Sentinel Hub (Copernicus free tier) |
+| STAC discovery | Element84 Earth Search (`earth-search.aws.element84.com/v1`) |
+| Tile server | TiTiler (Docker sidecar, port 8080) |
+| NER microservice | Python FastAPI + ConfliBERT (Docker sidecar, port 8001) |
+| Media storage | Cloudflare R2 (zero egress, S3-compatible API) |
+| Media processing | Sharp (images) + fluent-ffmpeg (video thumbnails) |
+| Push notifications | web-push (VAPID) + Service Worker |
+| Geospatial analysis | @turf/turf + rbush (R-tree spatial index) |
+| Entity graph | Cytoscape.js + cytoscape-d3-force |
+| Media library | react-masonry-css + LightGallery + react-player |
+
+### New environment variables (add to .env.example)
+
+```bash
+# ─── Satellite ─────────────────────────────────────────────────────────────
+FIRMS_MAP_KEY=              # firms.modaps.eosdis.nasa.gov — free
+SENTINEL_HUB_CLIENT_ID=     # dataspace.copernicus.eu — free
+SENTINEL_HUB_CLIENT_SECRET= # dataspace.copernicus.eu
+
+# ─── Telegram MTProto ──────────────────────────────────────────────────────
+TELEGRAM_API_ID=            # my.telegram.org/apps
+TELEGRAM_API_HASH=          # my.telegram.org/apps
+TELEGRAM_SESSION_STRING=    # Generate with: npx ts-node scripts/telegram-auth.ts
+
+# ─── Media Storage (Cloudflare R2) ─────────────────────────────────────────
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=sentinel-media
+R2_PUBLIC_URL=              # https://{account}.r2.cloudflarestorage.com
+
+# ─── Push Notifications ────────────────────────────────────────────────────
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_EMAIL=                # mailto:your@email.com
+
+# ─── Internal Services ─────────────────────────────────────────────────────
+NER_SERVICE_URL=http://localhost:8001
+TITILER_URL=http://localhost:8080
+```
+
+### Updated development phases section
+
+```
+### Phase 8 — Full-Spectrum Intelligence Platform 🔨 CURRENT PHASE
+
+Sub-phases (work in parallel):
+- [ ] 8A: Satellite imagery layer (NASA GIBS, FIRMS, Copernicus)
+- [ ] 8B: Home page widget expansion (counters, sparklines, radar, choropleth)
+- [ ] 8C: AI intelligence features (morning brief, ConfliBERT NER, entity graph)
+- [ ] 8D: Telegram media feed (MTProto extraction, R2 storage, masonry gallery)
+- [ ] 8E: Advanced map capabilities (heatmap, geofences, TripsLayer, frontlines)
+```
+
+---
+
+## Recommended build order
+
+If working alone (sequential), the execution order is **8A → 8B → 8E → 8D → 8C**:
+
+1. **8A-1** — NASA GIBS layers (hours, immediate WOW factor for the platform)
+2. **8A-3, 8A-7** — Date picker + LayerControl SATELLITE group
+3. **8B-1, 8B-2** — Counters + sparklines (uses existing data, no new APIs)
+4. **8B-3 through 8B-5** — Radar chart, choropleth, diplomatic timeline
+5. **8E-1** — Heatmap time-window (uses existing deck.gl HeatmapLayer)
+6. **8E-2 through 8E-7** — Geofences, TripsLayer, frontlines, ADIZ, STS, push
+7. **8D-1 through 8D-4** — Telegram media (new infra investment, highest OSINT value)
+8. **8C-4** — Anomaly detection (browser-side, no new infra)
+9. **8C-1** — Morning brief (uses existing Claude integration + data)
+10. **8A-4 through 8A-6** — Copernicus + STAC + TiTiler (heavier infra)
+11. **8C-2, 8C-3** — ConfliBERT NER + entity graph (Python sidecar)
+
+---
+
+## Definition of done — Phase 8 complete
+
+- [ ] Satellite tile layers toggle on theater maps; GIBS date picker works
+- [ ] Home page shows live counters, sparklines, radar charts, choropleth
+- [ ] Morning brief panel generates BLUF-format daily assessments
+- [ ] New incidents are NER-enriched within 15 minutes
+- [ ] Entity graph renders for each conflict
+- [ ] Telegram media appears in Media Feed panel within 5 minutes of posting
+- [ ] Geotagged media shows on map
+- [ ] Aircraft trails animate with TripsLayer
+- [ ] Geofenced alert zone fires correctly
+- [ ] Frontline layer renders for russia-ukraine
+- [ ] Adding a new conflict = one `ConflictConfig` object (unchanged from Phase 7)
+
+---
+
+*Phase 8 authored post–Phase 7 completion.*
+*Previous phases: Foundations (0) · Aircraft (1) · Naval (2) · OSINT (3) ·
+Geographic Overlays (4) · AI Intelligence (5) · Economic & Cyber (6) · Polish (7)*

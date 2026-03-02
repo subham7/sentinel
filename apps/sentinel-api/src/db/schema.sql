@@ -63,6 +63,19 @@ CREATE TABLE IF NOT EXISTS ais_dark_events (
   gap_minutes     INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS ais_sts_events (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  conflict_slug   TEXT NOT NULL,
+  mmsi_a          TEXT NOT NULL,
+  mmsi_b          TEXT NOT NULL,
+  lat             REAL,
+  lon             REAL,
+  started_at      INTEGER NOT NULL,
+  ended_at        INTEGER,
+  duration_min    INTEGER,
+  created_at      INTEGER DEFAULT (unixepoch())
+);
+
 CREATE TABLE IF NOT EXISTS telegram_posts (
   id              TEXT PRIMARY KEY,   -- 'channel/messageId'
   conflict_slug   TEXT NOT NULL,
@@ -74,6 +87,23 @@ CREATE TABLE IF NOT EXISTS telegram_posts (
   incident_id     TEXT REFERENCES incidents(id),
   created_at      INTEGER DEFAULT (unixepoch())
 );
+
+CREATE TABLE IF NOT EXISTS telegram_media (
+  id              TEXT PRIMARY KEY,       -- '{channel}:{message_id}'
+  conflict_slug   TEXT NOT NULL,
+  channel         TEXT NOT NULL,
+  message_id      INTEGER NOT NULL,
+  media_type      TEXT NOT NULL,          -- 'photo' | 'video'
+  url             TEXT NOT NULL,          -- CDN URL
+  thumbnail_url   TEXT,
+  posted_at       TEXT NOT NULL,
+  caption         TEXT,
+  view_count      INTEGER DEFAULT 0,
+  is_visible      INTEGER DEFAULT 1,
+  created_at      INTEGER DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_telegram_media_conflict ON telegram_media(conflict_slug, posted_at DESC);
 
 CREATE TABLE IF NOT EXISTS data_freshness (
   source_id       TEXT PRIMARY KEY,

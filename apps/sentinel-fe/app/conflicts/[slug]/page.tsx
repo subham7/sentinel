@@ -6,7 +6,8 @@ import { useMobile } from '@/hooks/useMobile'
 import dynamic from 'next/dynamic'
 import { getConflict } from '@sentinel/shared'
 import type { ConflictConfig, Aircraft, Vessel, Incident } from '@sentinel/shared'
-import type { LayerState } from '@/components/map/TheaterMap'
+import type { LayerState, HeatmapWindow } from '@/components/map/TheaterMap'
+import { yesterdayUTC } from '@/components/map/layers/SatelliteLayer'
 import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
 import OilPriceWidget from '@/components/panels/OilPriceWidget'
@@ -14,6 +15,7 @@ import RialWidget from '@/components/panels/RialWidget'
 import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
+import MediaFeed from '@/components/panels/MediaFeed'
 import LayerControl from '@/components/map/LayerControl'
 import CommandPalette from '@/components/CommandPalette'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
@@ -622,6 +624,8 @@ function PosturePanel({
 
 // ── Left intel panel: tracks + convergence/surge + sitrep + chat + feed ──────
 
+type IntelTab = 'intel' | 'media'
+
 function LeftIntelPanel({
   conflict, aircraft, vessels, incidents, incidentStatus,
   selectedAircraftId, selectedVesselId, onSelectAircraft, onSelectVessel, onFlyTo,
@@ -651,8 +655,19 @@ function LeftIntelPanel({
   feedSize: FeedSize
   onFeedSizeChange: (s: FeedSize) => void
 }) {
+  const [intelTab, setIntelTab] = useState<IntelTab>('intel')
+
   // Feed flex dimensions per size
   const feedFlex = feedSize === 'expanded' ? '1 1 0' : feedSize === 'normal' ? '0 0 300px' : '0 0 40px'
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1, padding: '4px 0', textAlign: 'center',
+    fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
+    color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+    background: active ? 'var(--bg-overlay)' : 'transparent',
+    border: 'none', borderBottom: active ? '1px solid #00b0ff' : '1px solid transparent',
+    cursor: 'pointer', fontFamily: "'Share Tech Mono', monospace",
+  })
 
   return (
     <div style={{
@@ -680,79 +695,102 @@ function LeftIntelPanel({
         />
       </div>
 
+      {/* Intelligence tab switcher */}
+      {feedSize !== 'expanded' && (
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <button style={tabStyle(intelTab === 'intel')} onClick={() => setIntelTab('intel')}>
+            ◈ Intel
+          </button>
+          <button style={tabStyle(intelTab === 'media')} onClick={() => setIntelTab('media')}>
+            ◉ Media
+          </button>
+        </div>
+      )}
+
       {/* Intelligence sections: hidden when feed is expanded */}
       {feedSize !== 'expanded' && (
-        <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
-
-          {/* Convergence alerts */}
-          {convergenceAlerts.length > 0 && (
-            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{
-                fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
-                textTransform: 'uppercase', marginBottom: 6,
-              }}>
-                ◉ Convergence ({convergenceAlerts.length})
-              </div>
-              {convergenceAlerts.slice(0, 3).map(alert => (
-                <div key={alert.cellId} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
-                }}>
-                  <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
-                    {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
-                  </span>
-                  <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
-                    {alert.signals.map(s => s.toUpperCase().slice(0, 2)).join('+')} ×{alert.entityCount}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Surge / strike package */}
-          {(surgeAlerts.length > 0 || strikePackage) && (
-            <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{
-                fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
-                textTransform: 'uppercase', marginBottom: 6,
-              }}>
-                ⚠ Surge Detection
-              </div>
-              {strikePackage && (
-                <div style={{
-                  padding: '4px 8px', marginBottom: 4,
-                  background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
-                  fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
-                  animation: 'pulse-opacity 1.5s ease-in-out infinite',
-                }}>
-                  STRIKE PACKAGE DETECTED
+        <div style={{
+          flex: '1 1 0', minHeight: 0,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        }}>
+          {/* ── INTEL tab ─────────────────────────────────────── */}
+          {intelTab === 'intel' && (
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {/* Convergence alerts */}
+              {convergenceAlerts.length > 0 && (
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{
+                    fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', marginBottom: 6,
+                  }}>
+                    ◉ Convergence ({convergenceAlerts.length})
+                  </div>
+                  {convergenceAlerts.slice(0, 3).map(alert => (
+                    <div key={alert.cellId} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: "'Share Tech Mono', monospace" }}>
+                        {alert.centerLat.toFixed(1)}°N {alert.centerLon.toFixed(1)}°E
+                      </span>
+                      <span style={{ fontSize: 9, color: '#f97316', letterSpacing: '0.06em' }}>
+                        {alert.signals.map(s => s.toUpperCase().slice(0, 2)).join('+')} ×{alert.entityCount}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
-              {surgeAlerts.map(alert => {
-                const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
-                return (
-                  <div key={alert.metric} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+
+              {/* Surge / strike package */}
+              {(surgeAlerts.length > 0 || strikePackage) && (
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{
+                    fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', marginBottom: 6,
                   }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
-                      {alert.metric.toUpperCase()} SURGE
-                    </span>
-                    <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
-                      {alert.current} (μ={alert.mean}, z={alert.zScore})
-                    </span>
+                    ⚠ Surge Detection
                   </div>
-                )
-              })}
+                  {strikePackage && (
+                    <div style={{
+                      padding: '4px 8px', marginBottom: 4,
+                      background: '#ef444422', border: '1px solid #ef444455', borderRadius: 2,
+                      fontSize: 10, color: '#ef4444', letterSpacing: '0.08em',
+                      animation: 'pulse-opacity 1.5s ease-in-out infinite',
+                    }}>
+                      STRIKE PACKAGE DETECTED
+                    </div>
+                  )}
+                  {surgeAlerts.map(alert => {
+                    const color = SURGE_COLORS[alert.severity] ?? '#94a3b8'
+                    return (
+                      <div key={alert.metric} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                          {alert.metric.toUpperCase()} SURGE
+                        </span>
+                        <span style={{ fontSize: 9, color, letterSpacing: '0.08em' }}>
+                          {alert.current} (μ={alert.mean}, z={alert.zScore})
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* SITREP */}
+              <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
+
+              {/* Analyst Chat */}
+              <AnalystChat slug={slug} />
             </div>
           )}
 
-          {/* SITREP */}
-          <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
-
-          {/* Analyst Chat */}
-          <AnalystChat slug={slug} />
-
+          {/* ── MEDIA tab ─────────────────────────────────────── */}
+          {intelTab === 'media' && (
+            <MediaFeed slug={slug} />
+          )}
         </div>
       )}
 
@@ -783,17 +821,23 @@ export default function TheaterPage() {
   const conflict = getConflict(slug)
 
   const DEFAULT_LAYERS: LayerState = {
-    aircraft:      true,
-    vessels:       true,
-    incidents:     true,
-    heatmap:       false,
-    bases:         true,
-    nuclear:       true,
-    sam:           true,
-    shippingLanes: true,
-    chokepoints:   true,
-    strikeRanges:  false,
-    countries:     true,
+    aircraft:              true,
+    vessels:               true,
+    incidents:             true,
+    heatmap:               false,
+    bases:                 true,
+    nuclear:               true,
+    sam:                   true,
+    shippingLanes:         true,
+    chokepoints:           true,
+    strikeRanges:          false,
+    countries:             true,
+    satellite_truecolor:   false,
+    satellite_nightlights: false,
+    satellite_thermal:     false,
+    frontlines:            false,
+    adiz:                  false,
+    maritime:              false,
   }
 
   const [layers, setLayers] = useState<LayerState>(() => {
@@ -812,10 +856,29 @@ export default function TheaterPage() {
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number } | null>(null)
   const [feedSize, setFeedSize] = useState<FeedSize>('normal')
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [satDate,       setSatDate]       = useState<string>(yesterdayUTC)
+  const [satOpacity,    setSatOpacity]    = useState<number>(0.85)
+  const [heatmapWindow, setHeatmapWindow] = useState<HeatmapWindow>('24h')
+  const [extendedIncidents, setExtendedIncidents] = useState<Incident[]>([])
 
   type MobileTab = 'map' | 'intel' | 'posture'
   const isMobile = useMobile()
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
+
+  // Extended incidents for longer heatmap windows (7d / 30d)
+  useEffect(() => {
+    if (!layers.heatmap || heatmapWindow === '24h') {
+      setExtendedIncidents([])
+      return
+    }
+    const hours = heatmapWindow === '7d' ? 168 : 720
+    let cancelled = false
+    fetch(`/api/conflicts/${slug}/incidents?hours=${hours}&limit=2000`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Incident[]) => { if (!cancelled) setExtendedIncidents(data) })
+      .catch(() => { /* fallback: SSE incidents used */ })
+    return () => { cancelled = true }
+  }, [slug, layers.heatmap, heatmapWindow])
 
   const { aircraft }                     = useAircraftWebSocket(slug)
   const { vessels }                      = useVesselWebSocket(slug)
@@ -1058,14 +1121,27 @@ export default function TheaterPage() {
             aircraft={aircraft}
             vessels={vessels}
             incidents={incidents}
+            {...(extendedIncidents.length > 0 ? { heatmapIncidents: extendedIncidents } : {})}
             nuclearStatuses={nuclearStatuses}
             selectedId={selectedAircraftId}
             onPickAircraft={ac => setSelectedAircraftId(ac?.icao24 ?? null)}
             onPickVessel={v => setSelectedVesselId(v?.mmsi ?? null)}
             onPickIncident={inc => setSelectedIncident(inc)}
             flyTo={flyTo}
+            satDate={satDate}
+            satOpacity={satOpacity}
           />
-          <LayerControl conflict={conflict} layers={layers} onChange={handleLayerToggle} />
+          <LayerControl
+            conflict={conflict}
+            layers={layers}
+            onChange={handleLayerToggle}
+            satDate={satDate}
+            onSatDateChange={setSatDate}
+            satOpacity={satOpacity}
+            onSatOpacityChange={setSatOpacity}
+            heatmapWindow={heatmapWindow}
+            onHeatmapWindow={setHeatmapWindow}
+          />
           {selectedAc && (
             <AircraftPopup ac={selectedAc} onClose={() => setSelectedAircraftId(null)} />
           )}

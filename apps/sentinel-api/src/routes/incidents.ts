@@ -3,7 +3,7 @@
 import type { FastifyInstance } from 'fastify'
 import { getConflict }           from '@sentinel/shared'
 import type { Incident }         from '@sentinel/shared'
-import { getRecentIncidents }    from '../db/queries.js'
+import { getRecentIncidents, getIncidentTrend, getIncidentCategoryBreakdown } from '../db/queries.js'
 import { incidentBus }           from '../services/incident-bus.js'
 
 type SlugParams = { Params: { slug: string } }
@@ -46,6 +46,24 @@ export async function registerIncidentRoutes(app: FastifyInstance): Promise<void
       })),
     }
     return fc
+  })
+
+  // ── Trend (daily counts, 30-day default) ───────────────────────────────────
+
+  app.get<SlugParams>('/api/conflicts/:slug/incidents/trend', async (req, reply) => {
+    const { slug } = req.params
+    if (!getConflict(slug)) return reply.status(404).send({ error: 'Not found' })
+    const days = Math.min(parseInt((req.query as Record<string, string>).days ?? '30', 10), 90)
+    return { trend: getIncidentTrend(slug, days), slug, days }
+  })
+
+  // ── Category breakdown (7-day default) ─────────────────────────────────────
+
+  app.get<SlugParams>('/api/conflicts/:slug/incidents/categories', async (req, reply) => {
+    const { slug } = req.params
+    if (!getConflict(slug)) return reply.status(404).send({ error: 'Not found' })
+    const days = Math.min(parseInt((req.query as Record<string, string>).days ?? '7', 10), 30)
+    return { categories: getIncidentCategoryBreakdown(slug, days), slug, days }
   })
 
   // ── SSE stream ──────────────────────────────────────────────────────────────

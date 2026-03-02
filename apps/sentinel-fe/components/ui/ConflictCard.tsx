@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ConflictConfig } from '@sentinel/shared'
-import IntensityBar from './IntensityBar'
+import ThreatSparklines, { type TrendPoint } from '@/components/home/ThreatSparklines'
+import ThreatRadar,      { type CategoryItem } from '@/components/home/ThreatRadar'
 
 const INTENSITY_LABELS: Record<string, string> = {
   critical: 'CRITICAL',
@@ -30,13 +31,17 @@ interface Props {
   hovered?:      boolean
   onHover?:      (slug: string | null) => void
   aircraftCount?: number | undefined
+  trendData?:    TrendPoint[]
+  categories?:   CategoryItem[]
 }
 
-export default function ConflictCard({ conflict, hovered, onHover, aircraftCount }: Props) {
+export default function ConflictCard({
+  conflict, hovered, onHover, aircraftCount, trendData, categories,
+}: Props) {
   const [isHovered, setIsHovered] = useState(false)
   const router = useRouter()
 
-  const active = hovered || isHovered
+  const active         = hovered || isHovered
   const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
 
   return (
@@ -45,20 +50,20 @@ export default function ConflictCard({ conflict, hovered, onHover, aircraftCount
       onMouseEnter={() => { setIsHovered(true); onHover?.(conflict.slug) }}
       onMouseLeave={() => { setIsHovered(false); onHover?.(null) }}
       style={{
-        display:      'flex',
+        display:       'flex',
         flexDirection: 'column',
-        background:   active ? 'var(--bg-overlay)' : 'var(--bg-surface)',
-        border:       `1px solid ${active ? 'var(--border-bright)' : 'var(--border)'}`,
-        borderLeft:   `3px solid ${conflict.card.accentColor}`,
-        borderRadius:  4,
-        cursor:       'pointer',
-        transition:   'background 0.15s, border-color 0.15s',
-        overflow:     'hidden',
-        position:     'relative',
+        background:    active ? 'var(--bg-overlay)' : 'var(--bg-surface)',
+        border:        `1px solid ${active ? 'var(--border-bright)' : 'var(--border)'}`,
+        borderLeft:    `3px solid ${conflict.card.accentColor}`,
+        borderRadius:   4,
+        cursor:        'pointer',
+        transition:    'background 0.15s, border-color 0.15s',
+        overflow:      'hidden',
+        position:      'relative',
       }}
     >
       {/* Body */}
-      <div style={{ padding: '14px 16px', flex: 1 }}>
+      <div style={{ padding: '14px 16px 10px', flex: 1 }}>
         {/* Title row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
@@ -115,7 +120,7 @@ export default function ConflictCard({ conflict, hovered, onHover, aircraftCount
         </div>
 
         {/* Parties */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           {conflict.parties.map(p => (
             <div key={p.shortCode} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 14 }}>{p.flagEmoji}</span>
@@ -134,7 +139,6 @@ export default function ConflictCard({ conflict, hovered, onHover, aircraftCount
         {/* Key metrics */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {conflict.card.keyMetrics.slice(0, 3).map((metric, i) => {
-            // First metric is always "Aircraft tracked" — show live count if available
             const value = (i === 0 && aircraftCount !== undefined)
               ? String(aircraftCount)
               : '—'
@@ -162,11 +166,19 @@ export default function ConflictCard({ conflict, hovered, onHover, aircraftCount
             )
           })}
         </div>
+
+        {/* Threat radar — 7-day category breakdown */}
+        <ThreatRadar
+          categories={categories ?? []}
+          accentColor={conflict.card.accentColor}
+          intensity={conflict.intensity}
+          slug={conflict.slug}
+        />
       </div>
 
       {/* CTA footer */}
       <div style={{
-        padding:        '8px 16px',
+        padding:        '7px 16px',
         borderTop:     `1px solid var(--border)`,
         display:        'flex',
         justifyContent: 'space-between',
@@ -191,8 +203,12 @@ export default function ConflictCard({ conflict, hovered, onHover, aircraftCount
         </span>
       </div>
 
-      {/* Intensity bar at very bottom */}
-      <IntensityBar intensity={conflict.intensity} />
+      {/* 30-day sparkline as bottom intensity indicator */}
+      <ThreatSparklines
+        data={trendData ?? []}
+        accentColor={conflict.card.accentColor}
+        slug={conflict.slug}
+      />
     </div>
   )
 }

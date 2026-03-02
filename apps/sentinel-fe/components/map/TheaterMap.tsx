@@ -5,6 +5,9 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { circle as turfCircle } from '@turf/turf'
 import type { ConflictConfig, Aircraft, Vessel, Incident, MilitaryBase } from '@sentinel/shared'
+import { GIBS_LAYERS, gibsTileUrl, yesterdayUTC } from './layers/SatelliteLayer'
+import { getFrontline } from '@sentinel/shared'
+import { getAdizZones, getMaritimeZones } from '@sentinel/shared'
 
 const CARTO_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
 
@@ -26,18 +29,26 @@ const NUCLEAR_STATUS_COLORS: Record<string, string> = {
 }
 
 export interface LayerState {
-  aircraft:      boolean
-  vessels:       boolean
-  incidents:     boolean
-  heatmap:       boolean
-  bases:         boolean
-  nuclear:       boolean
-  sam:           boolean
-  shippingLanes: boolean
-  chokepoints:   boolean
-  strikeRanges:  boolean
-  countries:     boolean
+  aircraft:             boolean
+  vessels:              boolean
+  incidents:            boolean
+  heatmap:              boolean
+  bases:                boolean
+  nuclear:              boolean
+  sam:                  boolean
+  shippingLanes:        boolean
+  chokepoints:          boolean
+  strikeRanges:         boolean
+  countries:            boolean
+  satellite_truecolor:   boolean
+  satellite_nightlights: boolean
+  satellite_thermal:     boolean
+  frontlines:           boolean
+  adiz:                 boolean
+  maritime:             boolean
 }
+
+export type HeatmapWindow = '24h' | '7d' | '30d'
 
 // ── Natural Earth 110m country GeoJSON (module-level cache) ───────────────────
 
@@ -60,17 +71,20 @@ const SEV_COLORS: Record<number, string> = {
 }
 
 interface Props {
-  conflict:         ConflictConfig
-  layers:           LayerState
-  aircraft:         Aircraft[]
-  vessels:          Vessel[]
-  incidents:        Incident[]
-  nuclearStatuses?: Map<string, string>   // siteId → overridden status from IAEA
-  selectedId?:      string | null
-  onPickAircraft?:  (ac: Aircraft | null) => void
-  onPickVessel?:    (v: Vessel | null) => void
-  onPickIncident?:  (inc: Incident | null) => void
-  flyTo?:           { lat: number; lon: number; zoom?: number } | null
+  conflict:          ConflictConfig
+  layers:            LayerState
+  aircraft:          Aircraft[]
+  vessels:           Vessel[]
+  incidents:         Incident[]
+  heatmapIncidents?: Incident[]  // extended window data (7d/30d); falls back to incidents when absent
+  nuclearStatuses?:  Map<string, string>
+  selectedId?:       string | null
+  onPickAircraft?:   (ac: Aircraft | null) => void
+  onPickVessel?:     (v: Vessel | null) => void
+  onPickIncident?:   (inc: Incident | null) => void
+  flyTo?:            { lat: number; lon: number; zoom?: number } | null
+  satDate?:          string
+  satOpacity?:       number
 }
 
 // ── Aircraft icon (SDF — tintable via icon-color) ─────────────────────────────
@@ -297,12 +311,15 @@ export default function TheaterMap({
   aircraft,
   vessels,
   incidents,
+  heatmapIncidents,
   nuclearStatuses,
   selectedId    = null,
   onPickAircraft,
   onPickVessel,
   onPickIncident,
   flyTo,
+  satDate,
+  satOpacity = 0.85,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<maplibregl.Map | null>(null)
@@ -322,6 +339,9 @@ export default function TheaterMap({
   // Shipping lane animation frame
   const laneAnimRef       = useRef<number>(0)
   const partyColorMapRef  = useRef<Record<string, string>>(buildPartyColorMap(conflict))
+  // Satellite layer refs — avoid stale closures in map callbacks
+  const satDateRef    = useRef<string>(satDate ?? yesterdayUTC())
+  const satOpacityRef = useRef<number>(satOpacity)
 
   layersRef.current       = layers
   aircraftRef.current     = aircraft
@@ -329,6 +349,8 @@ export default function TheaterMap({
   incidentsRef.current    = incidents
   selectedRef.current     = selectedId
   partyColorMapRef.current = buildPartyColorMap(conflict)
+  satDateRef.current      = satDate ?? yesterdayUTC()
+  satOpacityRef.current   = satOpacity
 
   const applyMarkerVisibility = useCallback((map: maplibregl.Map, ls: LayerState) => {
     markersRef.current.bases.forEach(m => ls.bases ? m.addTo(map) : m.remove())
@@ -375,6 +397,34 @@ export default function TheaterMap({
     if (map.getLayer('country-highlights-outline')) map.setLayoutProperty('country-highlights-outline', 'visibility', vis)
   }, [])
 
+  const applyFrontlineVisibility = useCallback((map: maplibregl.Map, visible: boolean) => {
+    const vis = visible ? 'visible' : 'none'
+    if (map.getLayer('frontline-russia-fill'))  map.setLayoutProperty('frontline-russia-fill',  'visibility', vis)
+    if (map.getLayer('frontline-contested'))    map.setLayoutProperty('frontline-contested',    'visibility', vis)
+    if (map.getLayer('frontline-line'))         map.setLayoutProperty('frontline-line',         'visibility', vis)
+    if (map.getLayer('frontline-confidence'))   map.setLayoutProperty('frontline-confidence',   'visibility', vis)
+  }, [])
+
+  const applyAdizVisibility = useCallback((map: maplibregl.Map, adizVis: boolean, marVis: boolean) => {
+    const av = adizVis ? 'visible' : 'none'
+    const mv = marVis  ? 'visible' : 'none'
+    if (map.getLayer('adiz-fill'))     map.setLayoutProperty('adiz-fill',     'visibility', av)
+    if (map.getLayer('adiz-line'))     map.setLayoutProperty('adiz-line',     'visibility', av)
+    if (map.getLayer('maritime-fill')) map.setLayoutProperty('maritime-fill', 'visibility', mv)
+    if (map.getLayer('maritime-line')) map.setLayoutProperty('maritime-line', 'visibility', mv)
+  }, [])
+
+  const applySatelliteVisibility = useCallback((map: maplibregl.Map, ls: LayerState, opacity: number) => {
+    for (const key of Object.keys(GIBS_LAYERS) as Array<keyof typeof GIBS_LAYERS>) {
+      const lid = `sat-${key}`
+      const sk  = `satellite_${key}` as keyof LayerState
+      if (map.getLayer(lid)) {
+        map.setLayoutProperty(lid, 'visibility', ls[sk] ? 'visible' : 'none')
+        map.setPaintProperty(lid, 'raster-opacity', opacity)
+      }
+    }
+  }, [])
+
   // ── Mount map ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -392,9 +442,38 @@ export default function TheaterMap({
     })
     mapRef.current = map
 
+    // Suppress GIBS 400 tile errors from the dev/console overlay.
+    // These fire when the map is zoomed beyond the source maxzoom (8) during a
+    // brief window before MapLibre's overzoom logic kicks in, or on first
+    // render at high zoom. All other map errors are forwarded to console.error.
+    map.on('error', ({ error }) => {
+      if ((error as Error & { url?: string }).url?.includes('gibs.earthdata.nasa.gov')) return
+      if (error.message?.includes('gibs.earthdata.nasa.gov')) return
+      console.error('[TheaterMap]', error)
+    })
+
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
 
     map.on('load', () => {
+      // ── Satellite raster layers (added FIRST — renders below all track/OSINT layers) ──
+      for (const [key, cfg] of Object.entries(GIBS_LAYERS)) {
+        const sk = `satellite_${key}` as keyof LayerState
+        map.addSource(`sat-${key}`, {
+          type:        'raster',
+          tiles:       [gibsTileUrl(cfg.id, satDateRef.current, cfg.fmt)],
+          tileSize:    256,
+          maxzoom:     cfg.maxZoom,  // GoogleMapsCompatible_Level9 caps at zoom 8 — prevents 400s
+          attribution: 'NASA GIBS / EOSDIS',
+        })
+        map.addLayer({
+          id:     `sat-${key}`,
+          type:   'raster',
+          source: `sat-${key}`,
+          layout: { visibility: layersRef.current[sk] ? 'visible' : 'none' },
+          paint:  { 'raster-opacity': satOpacityRef.current },
+        })
+      }
+
       // ── Aircraft SDF icon (white → tinted per-feature) ────────
       map.addImage('aircraft-sdf', createAircraftSDF(), { sdf: true })
 
@@ -850,6 +929,99 @@ export default function TheaterMap({
       applyMarkerVisibility(map, layersRef.current)
       applySamVisibility(map, layersRef.current.sam)
 
+      // ── Frontline / territorial control layer ─────────────────
+      const frontlineData = getFrontline(conflict.slug)
+      if (frontlineData) {
+        // Russian-controlled zone
+        const russiaZones = frontlineData.zones.filter(z => z.control === 'russia')
+        if (russiaZones.length > 0) {
+          map.addSource('frontline-russia', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: russiaZones.map(z => ({ type: 'Feature' as const, geometry: z.geometry, properties: { name: z.name } })) },
+          })
+          map.addLayer({
+            id: 'frontline-russia-fill', type: 'fill', source: 'frontline-russia',
+            layout: { visibility: layersRef.current.frontlines ? 'visible' : 'none' },
+            paint: { 'fill-color': '#ef4444', 'fill-opacity': 0.12 },
+          })
+        }
+
+        // Frontline contact lines (with uncertainty buffer)
+        if (frontlineData.lines.length > 0) {
+          map.addSource('frontline-lines', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: frontlineData.lines.map(l => ({ type: 'Feature' as const, geometry: l.geometry, properties: { name: l.name } })) },
+          })
+          map.addLayer({
+            id: 'frontline-confidence', type: 'line', source: 'frontline-lines',
+            layout: { visibility: layersRef.current.frontlines ? 'visible' : 'none', 'line-cap': 'round' },
+            paint: { 'line-color': '#eab308', 'line-width': 8, 'line-opacity': 0.08, 'line-blur': 4 },
+          })
+          map.addLayer({
+            id: 'frontline-line', type: 'line', source: 'frontline-lines',
+            layout: { visibility: layersRef.current.frontlines ? 'visible' : 'none', 'line-cap': 'round' },
+            paint: { 'line-color': '#eab308', 'line-width': 2, 'line-dasharray': [4, 2] },
+          })
+          map.addLayer({
+            id: 'frontline-contested', type: 'line', source: 'frontline-lines',
+            layout: { visibility: layersRef.current.frontlines ? 'visible' : 'none', 'line-cap': 'round' },
+            paint: { 'line-color': '#f97316', 'line-width': 6, 'line-opacity': 0.05 },
+          })
+        }
+      }
+
+      // ── ADIZ boundaries ────────────────────────────────────────
+      const adizZones  = getAdizZones(conflict.slug)
+      const maritimeZn = getMaritimeZones(conflict.slug)
+
+      if (adizZones.length > 0) {
+        map.addSource('adiz', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: adizZones.map(z => ({
+              type: 'Feature' as const,
+              geometry: z.geometry,
+              properties: { name: z.name, party: z.party, type: z.type },
+            })),
+          },
+        })
+        map.addLayer({
+          id: 'adiz-fill', type: 'fill', source: 'adiz',
+          layout: { visibility: layersRef.current.adiz ? 'visible' : 'none' },
+          paint: { 'fill-color': '#a855f7', 'fill-opacity': 0.04 },
+        })
+        map.addLayer({
+          id: 'adiz-line', type: 'line', source: 'adiz',
+          layout: { visibility: layersRef.current.adiz ? 'visible' : 'none' },
+          paint: { 'line-color': '#a855f7', 'line-width': 1.5, 'line-opacity': 0.6, 'line-dasharray': [6, 3] },
+        })
+      }
+
+      if (maritimeZn.length > 0) {
+        map.addSource('maritime', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: maritimeZn.map(z => ({
+              type: 'Feature' as const,
+              geometry: z.geometry,
+              properties: { name: z.name, party: z.party, type: z.type },
+            })),
+          },
+        })
+        map.addLayer({
+          id: 'maritime-fill', type: 'fill', source: 'maritime',
+          layout: { visibility: layersRef.current.maritime ? 'visible' : 'none' },
+          paint: { 'fill-color': '#00b0ff', 'fill-opacity': 0.06 },
+        })
+        map.addLayer({
+          id: 'maritime-line', type: 'line', source: 'maritime',
+          layout: { visibility: layersRef.current.maritime ? 'visible' : 'none' },
+          paint: { 'line-color': '#00b0ff', 'line-width': 1, 'line-opacity': 0.5, 'line-dasharray': [3, 4] },
+        })
+      }
+
       // ── Country highlights (async fetch, added after load) ────
       const highlights = conflict.overlays.countryHighlights ?? []
       if (highlights.length > 0) {
@@ -970,6 +1142,16 @@ export default function TheaterMap({
     if (incSource) incSource.setData(buildIncidentGeoJSON(incidents))
   }, [incidents, mapLoaded])
 
+  // ── Heatmap source: use extended window data when provided ─────────────────
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    if (!heatmapIncidents) return
+    const incSource = map.getSource('incidents') as maplibregl.GeoJSONSource | undefined
+    if (incSource) incSource.setData(buildIncidentGeoJSON(heatmapIncidents))
+  }, [heatmapIncidents, mapLoaded])
+
   // ── Fly to location (triggered by incident feed click) ────────────────────
 
   useEffect(() => {
@@ -977,6 +1159,28 @@ export default function TheaterMap({
     if (!map || !mapLoaded || !flyTo) return
     map.flyTo({ center: [flyTo.lon, flyTo.lat], zoom: flyTo.zoom ?? 8, duration: 1200 })
   }, [flyTo, mapLoaded])
+
+  // ── Update satellite tile URLs when date changes ───────────────────────────
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const date = satDate ?? yesterdayUTC()
+    for (const [key, cfg] of Object.entries(GIBS_LAYERS)) {
+      const src = map.getSource(`sat-${key}`) as (maplibregl.RasterTileSource & { setTiles?: (t: string[]) => void }) | undefined
+      if (src && typeof src.setTiles === 'function') {
+        src.setTiles([gibsTileUrl(cfg.id, date, cfg.fmt)])
+      }
+    }
+  }, [satDate, mapLoaded])
+
+  // ── Update satellite opacity when slider changes ──────────────────────────
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    applySatelliteVisibility(map, layersRef.current, satOpacity)
+  }, [satOpacity, mapLoaded, applySatelliteVisibility])
 
   // ── Shipping lane animated dash ────────────────────────────────────────────
 
@@ -1027,7 +1231,10 @@ export default function TheaterMap({
     applyIncidentVisibility(map, layers.incidents, layers.heatmap)
     applyShippingLaneVisibility(map, layers.shippingLanes)
     applyCountriesVisibility(map, layers.countries)
-  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility, applyCountriesVisibility])
+    applySatelliteVisibility(map, layers, satOpacityRef.current)
+    applyFrontlineVisibility(map, layers.frontlines)
+    applyAdizVisibility(map, layers.adiz, layers.maritime)
+  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility, applyCountriesVisibility, applySatelliteVisibility, applyFrontlineVisibility, applyAdizVisibility])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

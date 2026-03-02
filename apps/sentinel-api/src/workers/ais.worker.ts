@@ -2,7 +2,7 @@ import WebSocket from 'ws'
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import type { Vessel, VesselSide, VesselType, ConflictConfig } from '@sentinel/shared'
 import { cacheGet, cacheSet } from '../services/cache.js'
-import { insertVesselTrail, pruneOldVesselTrails } from '../db/queries.js'
+import { insertVesselTrail, pruneOldVesselTrails, upsertSTSEvent } from '../db/queries.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -46,6 +46,65 @@ function inBounds(lat: number, lon: number, bounds: ConflictConfig['map']['bound
     lat >= bounds.latMin && lat <= bounds.latMax &&
     lon >= bounds.lonMin && lon <= bounds.lonMax
   )
+}
+
+// ── Haversine distance (meters) ──────────────────────────────────────────────
+
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R  = 6_371_000
+  const dL = (lat2 - lat1) * Math.PI / 180
+  const dl = (lon2 - lon1) * Math.PI / 180
+  const a  = Math.sin(dL / 2) ** 2 +
+             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dl / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// ── STS detection ────────────────────────────────────────────────────────────
+// Track pairs that have been close + slow for ≥2 cycles (30s each = 30s min)
+
+const stsCandidates = new Map<string, { first: number; lat: number; lon: number }>()
+
+function detectSTS(slug: string, vessels: Vessel[]): void {
+  const stopped = vessels.filter(v => v.speed < 1.0 && !v.ais_dark)
+  const now     = Math.floor(Date.now() / 1000)
+
+  // Build set of currently-close pairs
+  const closePairs = new Set<string>()
+
+  for (let i = 0; i < stopped.length; i++) {
+    for (let j = i + 1; j < stopped.length; j++) {
+      const a = stopped[i]
+      const b = stopped[j]
+      if (!a || !b) continue
+
+      // At least one must be a tanker
+      if (a.type !== 'tanker' && b.type !== 'tanker') continue
+
+      const dist = distanceMeters(a.lat, a.lon, b.lat, b.lon)
+      if (dist > 500) continue
+
+      const pairKey = [a.mmsi, b.mmsi].sort().join(':')
+      closePairs.add(pairKey)
+
+      const midLat = (a.lat + b.lat) / 2
+      const midLon = (a.lon + b.lon) / 2
+
+      const existing = stsCandidates.get(pairKey)
+      if (!existing) {
+        stsCandidates.set(pairKey, { first: now, lat: midLat, lon: midLon })
+      } else if (now - existing.first >= 120) {
+        // ≥2 minutes close → record STS event
+        try {
+          upsertSTSEvent(slug, a.mmsi, b.mmsi, existing.lat, existing.lon, existing.first)
+        } catch { /* SQLite unavailable */ }
+      }
+    }
+  }
+
+  // Clean up pairs that are no longer close
+  for (const key of stsCandidates.keys()) {
+    if (!closePairs.has(key)) stsCandidates.delete(key)
+  }
 }
 
 // ── In-memory state ───────────────────────────────────────────────────────────
@@ -147,6 +206,8 @@ async function writeToCache(): Promise<void> {
 
     await cacheSet(`vessels:${slug}`, vessels, 60)
     await cacheSet(`vessels:${slug}:stale`, vessels, 86400)
+
+    detectSTS(slug, vessels)
 
     const darkCount = vessels.filter(v => v.ais_dark).length
     console.log(`[ais] ${slug}: ${vessels.length} vessels (${darkCount} dark)`)

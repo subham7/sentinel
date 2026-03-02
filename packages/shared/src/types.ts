@@ -100,6 +100,19 @@ export interface RialRateData {
   updated_at: number
 }
 
+export interface TelegramMedia {
+  id:            string           // '{channel}:{message_id}'
+  conflict_slug: string
+  channel:       string
+  message_id:    number
+  media_type:    'photo' | 'video'
+  url:           string           // direct CDN URL
+  thumbnail_url: string | null
+  posted_at:     string           // ISO 8601
+  caption:       string | null
+  view_count:    number
+}
+
 export interface SitrepReport {
   slug:           string
   summary:        string          // 2–3 AI sentences

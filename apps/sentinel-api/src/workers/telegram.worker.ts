@@ -7,7 +7,7 @@ import { ALL_CONFLICTS }       from '@sentinel/shared'
 import type { Incident }       from '@sentinel/shared'
 import { classifyText }        from '../services/classification.js'
 import { isDuplicateIncident } from '../services/deduplication.js'
-import { incidentExists, insertIncident } from '../db/queries.js'
+import { incidentExists, insertIncident, telegramMediaExists, insertTelegramMedia, pruneOldMedia } from '../db/queries.js'
 import { emitIncident }        from '../services/incident-bus.js'
 import { getDb }               from '../db/index.js'
 
@@ -62,6 +62,73 @@ function parseChannelPage(html: string, channel: string): { id: number; text: st
   return posts
 }
 
+// ── Media extraction from t.me/s/ HTML ───────────────────────────────────────
+
+interface MediaPost {
+  id:         number
+  url:        string
+  mediaType:  'photo' | 'video'
+  caption:    string | null
+  postedAt:   string
+  viewCount:  number
+}
+
+function parseMediaFromHtml(html: string): MediaPost[] {
+  const media: MediaPost[] = []
+
+  // Split on message boundaries — each block starts with data-post=
+  const blocks = html.split(/(?=data-post=)/)
+
+  for (const block of blocks) {
+    const idMatch = block.match(/data-post="[^/"]*\/(\d+)"/)
+    if (!idMatch) continue
+    const id = parseInt(idMatch[1] ?? '0', 10)
+    if (!id) continue
+
+    // Photo: background-image:url('CDN_URL') in photo_wrap
+    const photoMatch = block.match(/background-image:url\('([^']+)'\)/)
+
+    // Video: <video src="..." or poster="..."
+    const videoSrcMatch   = block.match(/<video[^>]+src="([^"]+\.mp4[^"]*)"/)
+    const videoPosterMatch = block.match(/<video[^>]+poster="([^"]+)"/)
+
+    if (!photoMatch && !videoSrcMatch && !videoPosterMatch) continue
+
+    const mediaType: 'photo' | 'video' = videoSrcMatch ? 'video' : 'photo'
+    const url = photoMatch?.[1] ?? videoPosterMatch?.[1] ?? videoSrcMatch?.[1] ?? ''
+    if (!url || !url.startsWith('http')) continue
+
+    // Caption — strip tags
+    const captionMatch = block.match(/class="[^"]*tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/)
+    const rawCaption = captionMatch?.[1] ?? ''
+    const caption = rawCaption
+      ? rawCaption
+          .replace(/<br\s*\/?>/gi, ' ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+          .trim().slice(0, 500) || null
+      : null
+
+    // Datetime
+    const dtMatch = block.match(/datetime="([^"]+)"/)
+    const postedAt = dtMatch?.[1] ? new Date(dtMatch[1]).toISOString() : new Date().toISOString()
+
+    // View count
+    const viewMatch = block.match(/class="[^"]*tgme_widget_message_views[^"]*"[^>]*>([^<]+)/)
+    const viewStr = viewMatch?.[1]?.trim() ?? '0'
+    const viewCount = viewStr.includes('K')
+      ? Math.round(parseFloat(viewStr) * 1000)
+      : viewStr.includes('M')
+        ? Math.round(parseFloat(viewStr) * 1_000_000)
+        : parseInt(viewStr, 10) || 0
+
+    media.push({ id, url, mediaType, caption, postedAt, viewCount })
+  }
+
+  return media
+}
+
 async function scrapeChannel(channel: string, conflictSlug: string): Promise<number> {
   const url = `https://t.me/s/${channel}`
   let html: string
@@ -78,6 +145,28 @@ async function scrapeChannel(channel: string, conflictSlug: string): Promise<num
 
   const minId  = getLastPostId(channel)
   const posts  = parseChannelPage(html, channel).filter(p => p.id > minId)
+
+  // Extract and store media items (photo/video) for new posts
+  const mediaPosts = parseMediaFromHtml(html).filter(m => m.id > minId)
+  for (const m of mediaPosts) {
+    const mediaId = `${channel}:${m.id}`
+    if (telegramMediaExists(mediaId)) continue
+    try {
+      insertTelegramMedia({
+        id:            mediaId,
+        conflict_slug: conflictSlug,
+        channel,
+        message_id:    m.id,
+        media_type:    m.mediaType,
+        url:           m.url,
+        thumbnail_url: null,
+        posted_at:     m.postedAt,
+        caption:       m.caption,
+        view_count:    m.viewCount,
+      })
+    } catch { /* non-fatal */ }
+  }
+
   if (!posts.length) return 0
 
   const maxId  = Math.max(...posts.map(p => p.id))
@@ -147,6 +236,8 @@ function getChannelsForConflict(conflict: (typeof ALL_CONFLICTS)[0]): string[] {
   return [...new Set([...configChannels, ...envChannels])]
 }
 
+let _pollCount = 0
+
 async function poll(): Promise<void> {
   for (const conflict of ALL_CONFLICTS) {
     const channels = getChannelsForConflict(conflict)
@@ -159,6 +250,11 @@ async function poll(): Promise<void> {
       }
       await new Promise(r => setTimeout(r, DELAY_MS))
     }
+  }
+  // Prune old media every ~24h (360 polls × 4 min = 24h)
+  _pollCount++
+  if (_pollCount % 360 === 0) {
+    try { pruneOldMedia(30) } catch { /* non-fatal */ }
   }
 }
 

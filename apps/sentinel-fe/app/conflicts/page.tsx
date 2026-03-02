@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import ConflictCard from '@/components/ui/ConflictCard'
+import GlobalIncidentCounter from '@/components/home/GlobalIncidentCounter'
+import DiplomaticTimeline from '@/components/home/DiplomaticTimeline'
 import { useMobile } from '@/hooks/useMobile'
+import type { TrendPoint } from '@/components/home/ThreatSparklines'
+import type { CategoryItem } from '@/components/home/ThreatRadar'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -66,9 +70,15 @@ interface ApiConflict {
   stats: ConflictStats
 }
 
+interface ConflictEnrichment {
+  trend:      TrendPoint[]
+  categories: CategoryItem[]
+}
+
 export default function ConflictsPage() {
-  const [hoveredSlug, setHoveredSlug] = useState<string | null>(null)
-  const [statsMap, setStatsMap]       = useState<Record<string, ConflictStats>>({})
+  const [hoveredSlug, setHoveredSlug]         = useState<string | null>(null)
+  const [statsMap, setStatsMap]               = useState<Record<string, ConflictStats>>({})
+  const [enrichment, setEnrichment]           = useState<Record<string, ConflictEnrichment>>({})
   const isMobile = useMobile()
 
   // Fetch live stats from API on mount, then every 30s
@@ -83,10 +93,39 @@ export default function ConflictsPage() {
           map[c.slug] = c.stats
         }
         setStatsMap(map)
-      } catch { /* API not up yet — keep empty */ }
+      } catch { /* API not up yet */ }
     }
     void fetchStats()
     const t = setInterval(() => void fetchStats(), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Fetch trend + category data for sparklines and radar charts
+  useEffect(() => {
+    async function fetchEnrichment() {
+      const results = await Promise.allSettled(
+        ALL_CONFLICTS.map(async c => {
+          const [trendRes, catRes] = await Promise.allSettled([
+            fetch(`${API_BASE}/api/conflicts/${c.slug}/incidents/trend?days=30`),
+            fetch(`${API_BASE}/api/conflicts/${c.slug}/incidents/categories?days=7`),
+          ])
+          const trend: TrendPoint[] = trendRes.status === 'fulfilled' && trendRes.value.ok
+            ? ((await trendRes.value.json() as { trend: TrendPoint[] }).trend)
+            : []
+          const categories: CategoryItem[] = catRes.status === 'fulfilled' && catRes.value.ok
+            ? ((await catRes.value.json() as { categories: CategoryItem[] }).categories)
+            : []
+          return { slug: c.slug, trend, categories }
+        }),
+      )
+      const map: Record<string, ConflictEnrichment> = {}
+      for (const r of results) {
+        if (r.status === 'fulfilled') map[r.value.slug] = r.value
+      }
+      setEnrichment(map)
+    }
+    void fetchEnrichment()
+    const t = setInterval(() => void fetchEnrichment(), 60_000)
     return () => clearInterval(t)
   }, [])
 
@@ -150,6 +189,9 @@ export default function ConflictsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Global stats bar ─────────────────────────────────── */}
+      <GlobalIncidentCounter />
 
       {/* ── Main ────────────────────────────────────────────── */}
       <div style={{
@@ -216,6 +258,7 @@ export default function ConflictsPage() {
           }}>
             {ALL_CONFLICTS.map(conflict => {
               const stats = statsMap[conflict.slug]
+              const rich  = enrichment[conflict.slug]
               return (
                 <ConflictCard
                   key={conflict.slug}
@@ -223,10 +266,15 @@ export default function ConflictsPage() {
                   hovered={hoveredSlug === conflict.slug}
                   onHover={setHoveredSlug}
                   aircraftCount={stats?.aircraft_count}
+                  trendData={rich?.trend ?? []}
+                  categories={rich?.categories ?? []}
                 />
               )
             })}
           </div>
+
+          {/* Diplomatic timeline */}
+          <DiplomaticTimeline />
 
           {/* Bottom note */}
           <div style={{

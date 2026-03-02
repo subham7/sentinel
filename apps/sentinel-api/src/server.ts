@@ -17,7 +17,8 @@ import { registerNuclearRoutes }     from './routes/nuclear.js'
 import { registerSitrepRoutes }      from './routes/sitrep.js'
 import { registerAnalystChatRoutes } from './routes/analyst-chat.js'
 import { registerEconomicRoutes }    from './routes/economic.js'
-import { getRecentIncidents }      from './db/queries.js'
+import { registerMediaRoutes }       from './routes/media.js'
+import { getRecentIncidents }        from './db/queries.js'
 import { startWorkers } from './workers/index.js'
 
 const app = Fastify({ logger: { level: 'warn' } })
@@ -90,6 +91,39 @@ app.get<{ Params: { slug: string } }>('/api/conflicts/:slug', async (req, reply)
   }
 })
 
+// ── Global stats ─────────────────────────────────────────────────────────────
+
+app.get('/api/stats/global', async () => {
+  const [allAircraft, allVessels] = await Promise.all([
+    Promise.all(ALL_CONFLICTS.map(c => cacheGet<unknown[]>(`aircraft:${c.slug}`))),
+    Promise.all(ALL_CONFLICTS.map(c => cacheGet<unknown[]>(`vessels:${c.slug}`))),
+  ])
+  const liveTracks =
+    allAircraft.reduce((s, a) => s + (a?.length ?? 0), 0) +
+    allVessels.reduce((s, v) => s + (v?.length ?? 0), 0)
+
+  let vesselsDark = 0
+  try {
+    const row = getDb()
+      .prepare('SELECT COUNT(*) AS n FROM ais_dark_events WHERE gap_ended_at IS NULL')
+      .get() as { n: number } | undefined
+    vesselsDark = row?.n ?? 0
+  } catch { /* DB not ready */ }
+
+  const incidents24h = ALL_CONFLICTS.reduce(
+    (s, c) => s + getRecentIncidents(c.slug, 24, 1000).length,
+    0,
+  )
+
+  return {
+    activeTheaters: ALL_CONFLICTS.filter(c => c.status === 'active').length,
+    incidents24h,
+    liveTracks,
+    vesselsDark,
+    timestamp: Date.now(),
+  }
+})
+
 // ── Aircraft routes (REST + WS) ─────────────────────────────────────────────
 
 await registerAircraftRoutes(app)
@@ -105,6 +139,7 @@ await registerNuclearRoutes(app)
 await registerSitrepRoutes(app)
 await registerAnalystChatRoutes(app)
 await registerEconomicRoutes(app)
+await registerMediaRoutes(app)
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/theater', async (req, reply) => {
   const conflict = getConflict(req.params.slug)
@@ -147,5 +182,5 @@ startWorkers()
 
 const port = Number(process.env.PORT ?? 3001)
 await app.listen({ port, host: '0.0.0.0' })
-console.log(`SENTINEL API — Phase 6 — http://localhost:${port}`)
+console.log(`SENTINEL API — Phase 8B — http://localhost:${port}`)
 console.log(`Conflicts: ${ALL_CONFLICTS.map(c => c.slug).join(', ')}`)
