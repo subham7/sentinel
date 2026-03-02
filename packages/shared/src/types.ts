@@ -113,6 +113,46 @@ export interface TelegramMedia {
   view_count:    number
 }
 
+export interface MorningBrief {
+  slug:               string
+  date:               string      // YYYY-MM-DD UTC
+  bluf:               string      // Bottom Line Up Front
+  judgments:          { confidence: 'HIGH' | 'MODERATE' | 'LOW'; text: string }[]
+  evidence:           string
+  outlook:            string
+  overall_confidence: 'HIGH' | 'MODERATE' | 'LOW'
+  sources:            string
+  generated_at:       number      // unix ms
+  model:              string
+}
+
+export interface RhetoricScore {
+  slug:         string
+  score:        number    // 0–100
+  label:        'ROUTINE' | 'ELEVATED' | 'THREATENING' | 'CRISIS' | 'IMMINENT'
+  key_phrases:  string[]
+  post_count:   number
+  generated_at: number
+}
+
+export interface EntityGraphNode {
+  id:        string
+  label:     string
+  frequency: number
+}
+
+export interface EntityGraphEdge {
+  source: string
+  target: string
+  weight: number
+}
+
+export interface EntityGraph {
+  nodes:        EntityGraphNode[]
+  edges:        EntityGraphEdge[]
+  generated_at: number
+}
+
 export interface SitrepReport {
   slug:           string
   summary:        string          // 2–3 AI sentences

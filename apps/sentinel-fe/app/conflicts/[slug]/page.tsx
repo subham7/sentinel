@@ -16,6 +16,10 @@ import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
 import MediaFeed from '@/components/panels/MediaFeed'
+import MorningBriefPanel from '@/components/panels/MorningBriefPanel'
+import AnomalyBanner from '@/components/panels/AnomalyBanner'
+import RhetoricGauge from '@/components/panels/RhetoricGauge'
+import EntityGraph from '@/components/panels/EntityGraph'
 import LayerControl from '@/components/map/LayerControl'
 import CommandPalette from '@/components/CommandPalette'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
@@ -28,6 +32,12 @@ import { detectConvergence } from '@/services/signal-aggregator'
 import type { ConvergenceAlert } from '@/services/signal-aggregator'
 import { detectSurge, detectStrikePackage } from '@/services/military-surge'
 import type { SurgeAlert } from '@/services/military-surge'
+import { detectAnomalies } from '@/services/anomaly.service'
+import type { AnomalyAlert } from '@/services/anomaly.service'
+import { useMorningBrief } from '@/hooks/useMorningBrief'
+import { useEntityGraph } from '@/hooks/useEntityGraph'
+import { useRhetoric } from '@/hooks/useRhetoric'
+import { useIncidentTrend } from '@/hooks/useIncidentTrend'
 
 const TheaterMap = dynamic(
   () => import('@/components/map/TheaterMap'),
@@ -624,14 +634,17 @@ function PosturePanel({
 
 // ── Left intel panel: tracks + convergence/surge + sitrep + chat + feed ──────
 
-type IntelTab = 'intel' | 'media'
+type IntelTab = 'intel' | 'brief' | 'media'
 
 function LeftIntelPanel({
   conflict, aircraft, vessels, incidents, incidentStatus,
   selectedAircraftId, selectedVesselId, onSelectAircraft, onSelectVessel, onFlyTo,
   sitrep, sitrepLoading, sitrepPending,
-  convergenceAlerts, surgeAlerts, strikePackage, slug,
-  isMobile, visible, feedSize, onFeedSizeChange,
+  convergenceAlerts, surgeAlerts, strikePackage, anomalyAlerts,
+  slug, isMobile, visible, feedSize, onFeedSizeChange,
+  morningBrief, briefPending, briefLoading,
+  entityGraph, graphPending, graphLoading,
+  rhetoric, rhetoricPending, rhetoricLoading,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
@@ -649,11 +662,21 @@ function LeftIntelPanel({
   convergenceAlerts: ConvergenceAlert[]
   surgeAlerts: SurgeAlert[]
   strikePackage: boolean
+  anomalyAlerts: AnomalyAlert[]
   slug: string
   isMobile: boolean
   visible: boolean
   feedSize: FeedSize
   onFeedSizeChange: (s: FeedSize) => void
+  morningBrief: import('@sentinel/shared').MorningBrief | null
+  briefPending: boolean
+  briefLoading: boolean
+  entityGraph: import('@sentinel/shared').EntityGraph | null
+  graphPending: boolean
+  graphLoading: boolean
+  rhetoric: import('@sentinel/shared').RhetoricScore | null
+  rhetoricPending: boolean
+  rhetoricLoading: boolean
 }) {
   const [intelTab, setIntelTab] = useState<IntelTab>('intel')
 
@@ -701,6 +724,9 @@ function LeftIntelPanel({
           <button style={tabStyle(intelTab === 'intel')} onClick={() => setIntelTab('intel')}>
             ◈ Intel
           </button>
+          <button style={tabStyle(intelTab === 'brief')} onClick={() => setIntelTab('brief')}>
+            ◈ Brief
+          </button>
           <button style={tabStyle(intelTab === 'media')} onClick={() => setIntelTab('media')}>
             ◉ Media
           </button>
@@ -715,10 +741,15 @@ function LeftIntelPanel({
         }}>
           {/* ── INTEL tab ─────────────────────────────────────── */}
           {intelTab === 'intel' && (
-            <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+              {/* Anomaly banner (above everything) */}
+              {anomalyAlerts.length > 0 && (
+                <AnomalyBanner alerts={anomalyAlerts} slug={slug} />
+              )}
+
               {/* Convergence alerts */}
               {convergenceAlerts.length > 0 && (
-                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                   <div style={{
                     fontSize: 10, color: '#f97316', letterSpacing: '0.12em',
                     textTransform: 'uppercase', marginBottom: 6,
@@ -743,7 +774,7 @@ function LeftIntelPanel({
 
               {/* Surge / strike package */}
               {(surgeAlerts.length > 0 || strikePackage) && (
-                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                   <div style={{
                     fontSize: 10, color: '#ef4444', letterSpacing: '0.12em',
                     textTransform: 'uppercase', marginBottom: 6,
@@ -779,11 +810,24 @@ function LeftIntelPanel({
                 </div>
               )}
 
+              {/* Rhetoric gauge */}
+              <RhetoricGauge data={rhetoric} pending={rhetoricPending} loading={rhetoricLoading} />
+
               {/* SITREP */}
               <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
 
               {/* Analyst Chat */}
               <AnalystChat slug={slug} />
+            </div>
+          )}
+
+          {/* ── BRIEF tab ─────────────────────────────────────── */}
+          {intelTab === 'brief' && (
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+              <MorningBriefPanel brief={morningBrief} pending={briefPending} loading={briefLoading} />
+              <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+                <EntityGraph graph={entityGraph} pending={graphPending} loading={graphLoading} slug={slug} />
+              </div>
             </div>
           )}
 
@@ -887,6 +931,12 @@ export default function TheaterPage() {
   const { report: sitrep, loading: sitrepLoading, pending: sitrepPending } = useSitrepReport(slug)
   const economic = useEconomicData()
 
+  // Phase 8C
+  const { brief: morningBrief, pending: briefPending, loading: briefLoading } = useMorningBrief(slug)
+  const { graph: entityGraph,  pending: graphPending, loading: graphLoading } = useEntityGraph(slug)
+  const { data: rhetoric, pending: rhetoricPending, loading: rhetoricLoading } = useRhetoric(slug)
+  const trend = useIncidentTrend(slug, 30)
+
   const convergenceAlerts = useMemo(
     () => detectConvergence(aircraft, vessels, incidents),
     [aircraft, vessels, incidents],
@@ -896,6 +946,10 @@ export default function TheaterPage() {
     [slug, aircraft, vessels],
   )
   const strikePackage = useMemo(() => detectStrikePackage(aircraft), [aircraft])
+  const anomalyAlerts = useMemo(
+    () => detectAnomalies(slug, trend, incidents.length),
+    [slug, trend, incidents.length],
+  )
 
   const selectedAc = selectedAircraftId ? aircraft.find(a => a.icao24 === selectedAircraftId) ?? null : null
   const selectedVs = selectedVesselId   ? vessels.find(v => v.mmsi === selectedVesselId)      ?? null : null
@@ -1103,11 +1157,21 @@ export default function TheaterPage() {
           convergenceAlerts={convergenceAlerts}
           surgeAlerts={surgeAlerts}
           strikePackage={strikePackage}
+          anomalyAlerts={anomalyAlerts}
           slug={slug}
           isMobile={isMobile}
           visible={!isMobile || mobileTab === 'intel'}
           feedSize={feedSize}
           onFeedSizeChange={setFeedSize}
+          morningBrief={morningBrief}
+          briefPending={briefPending}
+          briefLoading={briefLoading}
+          entityGraph={entityGraph}
+          graphPending={graphPending}
+          graphLoading={graphLoading}
+          rhetoric={rhetoric}
+          rhetoricPending={rhetoricPending}
+          rhetoricLoading={rhetoricLoading}
         />
 
         {/* Map area */}

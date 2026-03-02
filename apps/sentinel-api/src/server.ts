@@ -18,6 +18,9 @@ import { registerSitrepRoutes }      from './routes/sitrep.js'
 import { registerAnalystChatRoutes } from './routes/analyst-chat.js'
 import { registerEconomicRoutes }    from './routes/economic.js'
 import { registerMediaRoutes }       from './routes/media.js'
+import { registerMorningBriefRoutes } from './routes/morning-brief.js'
+import { registerRhetoricRoutes }     from './routes/rhetoric.js'
+import { registerEntityGraphRoutes }  from './routes/entity-graph.js'
 import { getRecentIncidents }        from './db/queries.js'
 import { startWorkers } from './workers/index.js'
 
@@ -140,6 +143,9 @@ await registerSitrepRoutes(app)
 await registerAnalystChatRoutes(app)
 await registerEconomicRoutes(app)
 await registerMediaRoutes(app)
+await registerMorningBriefRoutes(app)
+await registerRhetoricRoutes(app)
+await registerEntityGraphRoutes(app)
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/theater', async (req, reply) => {
   const conflict = getConflict(req.params.slug)
@@ -182,5 +188,5 @@ startWorkers()
 
 const port = Number(process.env.PORT ?? 3001)
 await app.listen({ port, host: '0.0.0.0' })
-console.log(`SENTINEL API — Phase 8B — http://localhost:${port}`)
+console.log(`SENTINEL API — Phase 8C — http://localhost:${port}`)
 console.log(`Conflicts: ${ALL_CONFLICTS.map(c => c.slug).join(', ')}`)

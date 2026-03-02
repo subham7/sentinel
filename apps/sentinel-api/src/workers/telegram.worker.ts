@@ -146,8 +146,9 @@ async function scrapeChannel(channel: string, conflictSlug: string): Promise<num
   const minId  = getLastPostId(channel)
   const posts  = parseChannelPage(html, channel).filter(p => p.id > minId)
 
-  // Extract and store media items (photo/video) for new posts
-  const mediaPosts = parseMediaFromHtml(html).filter(m => m.id > minId)
+  // Extract and store media items — check ALL parsed posts (dedup via INSERT OR IGNORE)
+  // Do NOT filter by minId: photos may exist in already-seen text posts
+  const mediaPosts = parseMediaFromHtml(html)
   for (const m of mediaPosts) {
     const mediaId = `${channel}:${m.id}`
     if (telegramMediaExists(mediaId)) continue

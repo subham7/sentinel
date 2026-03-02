@@ -17,8 +17,8 @@ export async function registerIncidentRoutes(app: FastifyInstance): Promise<void
     if (!getConflict(slug)) return reply.status(404).send({ error: 'Not found' })
 
     const qs       = req.query as Record<string, string>
-    const hours    = Math.min(parseInt(qs.hours ?? '24', 10), 168)   // max 7 days
-    const limit    = Math.min(parseInt(qs.limit ?? '200', 10), 500)
+    const hours    = Math.min(parseInt(qs.hours ?? '24', 10), 720)   // max 30 days
+    const limit    = Math.min(parseInt(qs.limit ?? '200', 10), 2000)
     const minSev   = parseInt(qs.severity ?? '1', 10)
 
     let incidents = getRecentIncidents(slug, hours, limit)

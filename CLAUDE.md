@@ -3,7 +3,7 @@
 Multi-conflict geospatial intelligence platform. Tracks military aircraft, naval vessels,
 and OSINT incidents across active conflict theaters in real time.
 
-**Current status:** Phase 7 ✅ — All phases complete
+**Current status:** Phase 8 ✅ — All phases complete (8A 8B 8C 8D 8E)
 
 ---
 
@@ -2055,11 +2055,11 @@ TITILER_URL=http://localhost:8080
 ### Phase 8 — Full-Spectrum Intelligence Platform 🔨 CURRENT PHASE
 
 Sub-phases (work in parallel):
-- [ ] 8A: Satellite imagery layer (NASA GIBS, FIRMS, Copernicus)
-- [ ] 8B: Home page widget expansion (counters, sparklines, radar, choropleth)
-- [ ] 8C: AI intelligence features (morning brief, ConfliBERT NER, entity graph)
-- [ ] 8D: Telegram media feed (MTProto extraction, R2 storage, masonry gallery)
-- [ ] 8E: Advanced map capabilities (heatmap, geofences, TripsLayer, frontlines)
+- [x] 8A: Satellite imagery layer (NASA GIBS, FIRMS, Copernicus)
+- [x] 8B: Home page widget expansion (counters, sparklines, radar, choropleth)
+- [x] 8C: AI intelligence features (morning brief, entity graph, anomaly detection, rhetoric gauge)
+- [x] 8D: Telegram media feed (HTML scraper, masonry gallery, lightbox)
+- [x] 8E: Advanced map capabilities (heatmap windows, frontlines, ADIZ, maritime, STS detection)
 ```
 
 ---

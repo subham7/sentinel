@@ -223,7 +223,7 @@ export default function MediaFeed({ slug }: Props) {
             padding: '20px 12px', textAlign: 'center',
             fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em',
           }}>
-            // NO MEDIA — configure TELEGRAM_CHANNELS in .env
+            // NO MEDIA YET — waiting for photo posts from configured channels
           </div>
         ) : (
           <>
