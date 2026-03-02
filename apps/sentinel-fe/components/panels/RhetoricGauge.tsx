@@ -41,16 +41,16 @@ function scoreToPoint(score: number) {
 const leftPt  = scoreToPoint(0)    // (CX-R, CY)
 const rightPt = scoreToPoint(100)  // (CX+R, CY)
 
-// Full semicircle track: left → right going counterclockwise (upward via top)
-// sweep-flag=0 = CCW in SVG (y-down) = goes through the TOP ✓
-const TRACK_PATH = `M ${leftPt.x} ${leftPt.y} A ${R} ${R} 0 0 0 ${rightPt.x} ${rightPt.y}`
+// Full semicircle track: left → right going clockwise (upward via top)
+// In SVG (y-down), sweep-flag=1 = clockwise = goes UPWARD through the TOP ✓
+// sweep-flag=0 = counterclockwise = goes DOWNWARD through the bottom (off-screen) ✗
+const TRACK_PATH = `M ${leftPt.x} ${leftPt.y} A ${R} ${R} 0 0 1 ${rightPt.x} ${rightPt.y}`
 
-// Filled arc from left to score position (always CCW = top arc, always < 180°)
+// Filled arc from left to score position (clockwise = top arc, largeArc=0 = ≤180°)
 function fillPath(score: number): string {
   if (score <= 0) return ''
   const end = scoreToPoint(Math.min(score, 100))
-  // largeArc=0: arc swept is ≤ 180°, sweep=0 (CCW = top arc)
-  return `M ${leftPt.x} ${leftPt.y} A ${R} ${R} 0 0 0 ${end.x} ${end.y}`
+  return `M ${leftPt.x} ${leftPt.y} A ${R} ${R} 0 0 1 ${end.x} ${end.y}`
 }
 
 export default function RhetoricGauge({ data, pending, loading }: Props) {
