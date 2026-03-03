@@ -11,7 +11,8 @@ interface Props {
   height?: number        // total height in px, default 80
 }
 
-export function FinancialChart({ data, color = '#00b0ff', height = 80 }: Props) {
+export function FinancialChart({ data: rawData, color = '#00b0ff', height = 80 }: Props) {
+  const data = rawData ?? []
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

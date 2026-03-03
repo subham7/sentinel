@@ -12,8 +12,7 @@ import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
 import OilPriceWidget from '@/components/panels/OilPriceWidget'
 import RialWidget from '@/components/panels/RialWidget'
-import { FinancialPanel } from '@/components/panels/FinancialPanel'
-import { MarketsPanel }   from '@/components/panels/MarketsPanel'
+import { FinancialBar }   from '@/components/panels/FinancialBar'
 import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
@@ -554,28 +553,6 @@ function PosturePanel({
       {conflict.slug === 'us-iran' && vessels.length > 0 && (
         <HormuzWidget vessels={vessels} />
       )}
-
-      {/* Oil price widget (us-iran only) */}
-      {conflict.slug === 'us-iran' && (
-        <OilPriceWidget data={economic.oil} pending={economic.oilPending} />
-      )}
-
-      {/* Rial rate widget (us-iran only) */}
-      {conflict.slug === 'us-iran' && (
-        <RialWidget data={economic.rial} pending={economic.rialPending} />
-      )}
-
-      {/* Financial Intelligence Panel (us-iran only) */}
-      {conflict.slug === 'us-iran' && (
-        <div style={{ padding: '8px 12px', flexShrink: 0 }}>
-          <FinancialPanel />
-        </div>
-      )}
-
-      {/* Prediction Markets Panel */}
-      <div style={{ padding: '8px 12px', flexShrink: 0 }}>
-        <MarketsPanel slug={conflict.slug} />
-      </div>
 
       {/* Sub-theaters */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -1211,9 +1188,18 @@ export default function TheaterPage() {
           rhetoricLoading={rhetoricLoading}
         />
 
-        {/* Map area */}
+        {/* Map column: map row + financial bar */}
         <div style={{
           display: (!isMobile || mobileTab === 'map') ? 'flex' : 'none',
+          flex: 1, flexDirection: 'column', overflow: 'hidden',
+        }}>
+
+        {/* Map + posture row */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+        {/* Map area */}
+        <div style={{
+          display: 'flex',
           flex: 1, position: 'relative', overflow: 'hidden',
         }}>
           <TheaterMap
@@ -1302,7 +1288,14 @@ export default function TheaterPage() {
           isMobile={isMobile}
           visible={!isMobile || mobileTab === 'posture'}
         />
-      </div>
+        </div>{/* end map + posture row */}
+
+        {/* Financial bar — below map + posture */}
+        {!isMobile && (
+          <FinancialBar slug={conflict.slug} showOilRial={conflict.slug === 'us-iran'} />
+        )}
+        </div>{/* end map column */}
+      </div>{/* end main content row */}
 
       {/* ── Mobile bottom tab bar ────────────────────────────── */}
       {isMobile && (

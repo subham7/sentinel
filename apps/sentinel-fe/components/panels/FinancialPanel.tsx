@@ -26,7 +26,7 @@ function changeColor(v: number): string {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function WarPremiumBadge({ futures }: { futures: OilFuturesData }) {
-  const wp   = futures.war_premium
+  const wp   = futures.war_premium ?? 0
   const abs  = Math.abs(wp)
   const color = abs > 5 ? '#ef4444' : abs > 2 ? '#f97316' : abs > 0 ? '#eab308' : '#22c55e'
   const label = abs > 5 ? 'SEVERE' : abs > 2 ? 'ELEVATED' : abs > 0 ? 'MODERATE' : 'NORMAL'
@@ -57,14 +57,14 @@ function WarPremiumBadge({ futures }: { futures: OilFuturesData }) {
       </div>
       <div className="grid grid-cols-4 gap-1 mt-1">
         {([
-          ['SPOT', futures.spot],
-          ['M2',   futures.m2],
-          ['M3',   futures.m3],
-          ['M4',   futures.m4],
+          ['SPOT', futures.spot  ?? 0],
+          ['M2',   futures.m2    ?? 0],
+          ['M3',   futures.m3    ?? 0],
+          ['M4',   futures.m4    ?? 0],
         ] as [string, number][]).map(([k, v]) => (
           <div key={k} className="flex flex-col items-center">
             <span className="text-[10px] text-[#475569] font-mono">{k}</span>
-            <span className="text-[12px] text-[#e2e8f0] font-mono">${v.toFixed(2)}</span>
+            <span className="text-[12px] text-[#e2e8f0] font-mono">{v > 0 ? `$${v.toFixed(2)}` : '—'}</span>
           </div>
         ))}
       </div>
@@ -73,18 +73,20 @@ function WarPremiumBadge({ futures }: { futures: OilFuturesData }) {
 }
 
 function FredRow({ series }: { series: FredData }) {
+  const value      = series.value      ?? 0
+  const change_pct = series.change_pct ?? 0
   return (
     <div className="flex items-center gap-2 py-1.5 px-3">
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-[13px] font-mono text-[#e2e8f0]">
-            {series.value.toFixed(2)}
+            {value.toFixed(2)}
           </span>
           <span
             className="text-[11px] font-mono"
-            style={{ color: changeColor(series.change_pct) }}
+            style={{ color: changeColor(change_pct) }}
           >
-            {fmtChange(series.change_pct)}
+            {fmtChange(change_pct)}
           </span>
         </div>
         <div className="text-[10px] font-mono text-[#475569] truncate">
@@ -92,13 +94,15 @@ function FredRow({ series }: { series: FredData }) {
         </div>
       </div>
       <div style={{ width: 80 }}>
-        <FinancialChart data={series.history} height={32} color={changeColor(series.change_pct)} />
+        <FinancialChart data={series.history ?? []} height={32} color={changeColor(series.change_pct)} />
       </div>
     </div>
   )
 }
 
 function EquityRow({ q }: { q: EquityQuote }) {
+  const price      = q.price      ?? 0
+  const change_pct = q.change_pct ?? 0
   return (
     <div className="flex items-center justify-between py-1 px-3"
       style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
@@ -108,9 +112,9 @@ function EquityRow({ q }: { q: EquityQuote }) {
         <span className="text-[10px] font-mono text-[#475569] truncate max-w-[100px]">{q.name}</span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-[12px] font-mono text-[#e2e8f0]">${q.price.toFixed(2)}</span>
-        <span className="text-[11px] font-mono" style={{ color: changeColor(q.change_pct) }}>
-          {fmtChange(q.change_pct)}
+        <span className="text-[12px] font-mono text-[#e2e8f0]">${price.toFixed(2)}</span>
+        <span className="text-[11px] font-mono" style={{ color: changeColor(change_pct) }}>
+          {fmtChange(change_pct)}
         </span>
       </div>
     </div>
@@ -118,6 +122,8 @@ function EquityRow({ q }: { q: EquityQuote }) {
 }
 
 function CurrencyRow({ r }: { r: CurrencyRate }) {
+  const rate       = r.rate       ?? 0
+  const change_pct = r.change_pct ?? 0
   return (
     <div className="flex items-center justify-between py-1.5 px-3"
       style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
@@ -133,9 +139,9 @@ function CurrencyRow({ r }: { r: CurrencyRate }) {
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-[12px] font-mono text-[#e2e8f0]">{r.rate.toFixed(4)}</span>
-        <span className="text-[11px] font-mono" style={{ color: changeColor(r.change_pct) }}>
-          {fmtChange(r.change_pct)}
+        <span className="text-[12px] font-mono text-[#e2e8f0]">{rate.toFixed(4)}</span>
+        <span className="text-[11px] font-mono" style={{ color: changeColor(change_pct) }}>
+          {fmtChange(change_pct)}
         </span>
       </div>
     </div>
