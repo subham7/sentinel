@@ -12,6 +12,7 @@ import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
 import OilPriceWidget from '@/components/panels/OilPriceWidget'
 import RialWidget from '@/components/panels/RialWidget'
+import { FinancialPanel } from '@/components/panels/FinancialPanel'
 import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
@@ -561,6 +562,13 @@ function PosturePanel({
       {/* Rial rate widget (us-iran only) */}
       {conflict.slug === 'us-iran' && (
         <RialWidget data={economic.rial} pending={economic.rialPending} />
+      )}
+
+      {/* Financial Intelligence Panel (us-iran only) */}
+      {conflict.slug === 'us-iran' && (
+        <div style={{ padding: '8px 12px', flexShrink: 0 }}>
+          <FinancialPanel />
+        </div>
       )}
 
       {/* Sub-theaters */}

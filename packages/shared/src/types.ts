@@ -153,6 +153,70 @@ export interface EntityGraph {
   generated_at: number
 }
 
+// ── Financial Intelligence types ────────────────────────────────────────────
+
+export interface OilFuturesData {
+  spot:        number          // RCLC1 — front month WTI
+  m2:          number          // RCLC2
+  m3:          number          // RCLC3
+  m4:          number          // RCLC4
+  war_premium: number          // % backwardation: (spot-m3)/m3*100
+  updated_at:  number
+}
+
+export interface FredPoint {
+  date:  string   // YYYY-MM-DD
+  value: number
+}
+
+export interface FredData {
+  series_id:  string
+  title:      string
+  value:      number
+  prev:       number
+  change_pct: number
+  history:    FredPoint[]     // last 30 values, oldest → newest
+  updated_at: number
+}
+
+export interface EquityQuote {
+  ticker:     string
+  name:       string
+  price:      number
+  change_pct: number          // % change vs prev close
+}
+
+export interface EquitiesData {
+  quotes:        EquityQuote[]
+  market_status: 'PRE_MARKET' | 'REGULAR' | 'POST_MARKET' | 'CLOSED'
+  updated_at:    number
+}
+
+export interface CurrencyRate {
+  pair:       string          // e.g. 'ILS/USD'
+  rate:       number          // units of quote per 1 USD
+  change_pct: number          // % change vs 24h ago
+  alert:      boolean         // >2% single-day move
+}
+
+export interface CurrenciesData {
+  rates:      CurrencyRate[]
+  updated_at: number
+}
+
+export interface PortWatchChokepoint {
+  name:             string
+  location_code:    number
+  disruption_index: number
+  vessel_count:     number
+  status:           'NORMAL' | 'ELEVATED' | 'DISRUPTED'
+}
+
+export interface PortWatchData {
+  chokepoints: PortWatchChokepoint[]
+  updated_at:  number
+}
+
 export interface SitrepReport {
   slug:           string
   summary:        string          // 2–3 AI sentences
