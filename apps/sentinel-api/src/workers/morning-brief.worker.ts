@@ -132,7 +132,7 @@ function parseBrief(raw: string, slug: string, date: string, sourcesStr: string,
 
 // ── Generator ─────────────────────────────────────────────────────────────────
 
-async function generateBrief(slug: string): Promise<MorningBrief | null> {
+export async function generateBrief(slug: string): Promise<MorningBrief | null> {
   const conflict = ALL_CONFLICTS.find(c => c.slug === slug)
   if (!conflict) return null
 
@@ -161,8 +161,9 @@ async function generateBrief(slug: string): Promise<MorningBrief | null> {
 
   // Each step: call provider, parse JSON, return on first valid result.
   // This ensures a bad/empty response from one provider doesn't block the rest.
+  // Order: Groq 70B → OpenRouter 70B → Groq 8B → Anthropic Haiku
 
-  // 1. Groq llama-3.3-70b-versatile (primary)
+  // 1. Groq llama-3.3-70b-versatile (primary — fastest, free)
   if (groqKey) {
     try {
       const raw = await callOpenAICompat('https://api.groq.com/openai/v1', groqKey, 'llama-3.3-70b-versatile', prompt)
@@ -171,22 +172,22 @@ async function generateBrief(slug: string): Promise<MorningBrief | null> {
     } catch (e) { console.warn(`[brief] groq/70b failed for ${slug}: ${(e as Error).message}`) }
   }
 
-  // 2. Groq llama-3.1-8b-instant (higher quota, same key)
-  if (groqKey) {
-    try {
-      const raw = await callOpenAICompat('https://api.groq.com/openai/v1', groqKey, 'llama-3.1-8b-instant', prompt)
-      const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'llama-3.1-8b') : null
-      if (brief) { console.log(`[brief] ${slug} ✓ groq/llama-3.1-8b (fallback)`); return brief }
-    } catch (e) { console.warn(`[brief] groq/8b failed for ${slug}: ${(e as Error).message}`) }
-  }
-
-  // 3. OpenRouter — free tier 70B (promoted above Anthropic)
+  // 2. OpenRouter — free tier 70B (high-quality fallback before smaller model)
   if (openrouterKey) {
     try {
       const raw = await callOpenAICompat('https://openrouter.ai/api/v1', openrouterKey, 'meta-llama/llama-3.3-70b-instruct:free', prompt)
       const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'openrouter/llama-3.3-70b') : null
       if (brief) { console.log(`[brief] ${slug} ✓ openrouter/llama-3.3-70b (fallback)`); return brief }
     } catch (e) { console.warn(`[brief] openrouter failed for ${slug}: ${(e as Error).message}`) }
+  }
+
+  // 3. Groq llama-3.1-8b-instant (higher quota, smaller model)
+  if (groqKey) {
+    try {
+      const raw = await callOpenAICompat('https://api.groq.com/openai/v1', groqKey, 'llama-3.1-8b-instant', prompt)
+      const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'llama-3.1-8b') : null
+      if (brief) { console.log(`[brief] ${slug} ✓ groq/llama-3.1-8b (fallback)`); return brief }
+    } catch (e) { console.warn(`[brief] groq/8b failed for ${slug}: ${(e as Error).message}`) }
   }
 
   // 4. Anthropic claude-haiku (last resort — costs money)
