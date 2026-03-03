@@ -8,19 +8,24 @@ import type { OilPriceData, OilFuturesData, RialRateData } from '@sentinel/share
 
 const OIL_POLL_MS  = 60 * 60 * 1000   // 1 hour
 const RIAL_POLL_MS = 30 * 60 * 1000   // 30 minutes
-const EIA_BASE     = 'https://api.eia.gov/v2/petroleum/pri/spt/data/'
+const EIA_SPT_BASE = 'https://api.eia.gov/v2/petroleum/pri/spt/data/'  // spot prices
+const EIA_FUT_BASE = 'https://api.eia.gov/v2/petroleum/pri/fut/data/'  // futures prices
 
 // ── Oil (EIA) ─────────────────────────────────────────────────────────────────
 
-function eiaUrl(series: string, length: number, apiKey: string): string {
-  return `${EIA_BASE}?frequency=daily&data[0]=value&facets[series][]=${series}&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=${length}&api_key=${apiKey}`
+function eiaUrl(base: string, series: string, length: number, apiKey: string): string {
+  return `${base}?frequency=daily&data[0]=value&facets[series][]=${series}&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=${length}&api_key=${apiKey}`
 }
 
-async function fetchEiaSeries(series: string, length: number, apiKey: string): Promise<number[]> {
-  const resp = await fetch(eiaUrl(series, length, apiKey), { signal: AbortSignal.timeout(30_000) })
-  if (!resp.ok) return []
-  const json = await resp.json() as { response: { data: { value: string }[] } }
-  return json.response.data.map(r => parseFloat(r.value)).filter(v => !isNaN(v) && v > 0)
+async function fetchEiaSeries(base: string, series: string, length: number, apiKey: string): Promise<number[]> {
+  try {
+    const resp = await fetch(eiaUrl(base, series, length, apiKey), { signal: AbortSignal.timeout(30_000) })
+    if (!resp.ok) return []
+    const json = await resp.json() as { response: { data: { value: string }[] } }
+    return (json.response?.data ?? []).map(r => parseFloat(r.value)).filter(v => !isNaN(v) && v > 0)
+  } catch {
+    return []
+  }
 }
 
 async function pollOil(): Promise<void> {
@@ -28,19 +33,21 @@ async function pollOil(): Promise<void> {
   if (!apiKey) return
 
   try {
-    // Brent history (60d) + WTI futures curve (RCLC1–RCLC4, 2 each for change)
-    const [brentPrices, rclc1, rclc2, rclc3, rclc4] = await Promise.all([
-      fetchEiaSeries('RBRTE', 60,  apiKey),
-      fetchEiaSeries('RCLC1', 2,   apiKey),
-      fetchEiaSeries('RCLC2', 1,   apiKey),
-      fetchEiaSeries('RCLC3', 1,   apiKey),
-      fetchEiaSeries('RCLC4', 1,   apiKey),
+    // Spot prices: RBRTE=Brent (60d history), RWTC=WTI spot (2 for day change)
+    // Futures prices (separate endpoint): RCLC1-4 = WTI front/2nd/3rd/4th month
+    const [brentPrices, wtiPrices, rclc1, rclc2, rclc3, rclc4] = await Promise.all([
+      fetchEiaSeries(EIA_SPT_BASE, 'RBRTE', 60, apiKey),
+      fetchEiaSeries(EIA_SPT_BASE, 'RWTC',   2, apiKey),
+      fetchEiaSeries(EIA_FUT_BASE, 'RCLC1',  1, apiKey),
+      fetchEiaSeries(EIA_FUT_BASE, 'RCLC2',  1, apiKey),
+      fetchEiaSeries(EIA_FUT_BASE, 'RCLC3',  1, apiKey),
+      fetchEiaSeries(EIA_FUT_BASE, 'RCLC4',  1, apiKey),
     ])
 
     const brent     = brentPrices[0] ?? 0
     const brentPrev = brentPrices[1] ?? brent
-    const wti       = rclc1[0] ?? 0
-    const wtiPrev   = rclc1[1] ?? wti
+    const wti       = wtiPrices[0] ?? 0
+    const wtiPrev   = wtiPrices[1] ?? wti
 
     const data: OilPriceData = {
       brent,
@@ -54,22 +61,24 @@ async function pollOil(): Promise<void> {
     await cacheSet('economic:oil',       data, 3_600)
     await cacheSet('economic:oil:stale', data, 86_400)
 
-    // Futures curve + war premium (backwardation = geopolitical risk priced in)
-    const m1 = rclc1[0] ?? 0
-    const m2 = rclc2[0] ?? 0
-    const m3 = rclc3[0] ?? 0
-    const m4 = rclc4[0] ?? 0
+    // Futures curve: use RCLC1-4 if available, else fall back to WTI spot
+    // War premium = (spot - 3rd month) / 3rd month × 100
+    // Positive = backwardation (front expensive vs forward = supply fear)
+    const spot = (rclc1[0] ?? 0) > 0 ? (rclc1[0] ?? 0) : wti
+    const m2v  = (rclc2[0] ?? 0) > 0 ? (rclc2[0] ?? 0) : spot
+    const m3v  = (rclc3[0] ?? 0) > 0 ? (rclc3[0] ?? 0) : spot
+    const m4v  = (rclc4[0] ?? 0) > 0 ? (rclc4[0] ?? 0) : spot
 
-    if (m1 > 0 && m3 > 0) {
-      const warPremium = Math.round(((m1 - m3) / m3) * 10000) / 100
+    if (spot > 0) {
+      const warPremium = m3v > 0 ? Math.round(((spot - m3v) / m3v) * 10000) / 100 : 0
       const futures: OilFuturesData = {
-        spot: m1, m2, m3, m4,
+        spot, m2: m2v, m3: m3v, m4: m4v,
         war_premium: warPremium,
         updated_at: Date.now(),
       }
       await cacheSet('economic:oil_futures',       futures, 3_600)
       await cacheSet('economic:oil_futures:stale', futures, 86_400)
-      console.log(`[economic] oil: Brent $${brent.toFixed(2)}, war premium ${warPremium >= 0 ? '+' : ''}${warPremium.toFixed(2)}%`)
+      console.log(`[economic] oil: Brent $${brent.toFixed(2)}, WTI $${wti.toFixed(2)}, war premium ${warPremium >= 0 ? '+' : ''}${warPremium.toFixed(2)}%`)
     } else {
       console.log(`[economic] oil: Brent $${brent.toFixed(2)} (${data.brent_change >= 0 ? '+' : ''}${data.brent_change.toFixed(2)})`)
     }

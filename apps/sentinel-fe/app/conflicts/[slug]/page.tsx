@@ -10,8 +10,6 @@ import type { LayerState, HeatmapWindow } from '@/components/map/TheaterMap'
 import { yesterdayUTC } from '@/components/map/layers/SatelliteLayer'
 import DataFreshness from '@/components/panels/DataFreshness'
 import HormuzWidget from '@/components/panels/HormuzWidget'
-import OilPriceWidget from '@/components/panels/OilPriceWidget'
-import RialWidget from '@/components/panels/RialWidget'
 import { FinancialBar }   from '@/components/panels/FinancialBar'
 import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
@@ -25,13 +23,11 @@ import LayerControl from '@/components/map/LayerControl'
 import CommandPalette from '@/components/CommandPalette'
 import NewsTicker from '@/components/ui/NewsTicker'
 import EmergencyHelplines from '@/components/ui/EmergencyHelplines'
-import TheaterCounters from '@/components/ui/TheaterCounters'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
 import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
 import { useIncidentSSE } from '@/hooks/useIncidentSSE'
 import { useNuclearStatus } from '@/hooks/useNuclearStatus'
 import { useSitrepReport } from '@/hooks/useSitrepReport'
-import { useEconomicData } from '@/hooks/useEconomicData'
 import { detectConvergence } from '@/services/signal-aggregator'
 import type { ConvergenceAlert } from '@/services/signal-aggregator'
 import { detectSurge, detectStrikePackage } from '@/services/military-surge'
@@ -430,12 +426,11 @@ const SURGE_COLORS: Record<string, string> = {
 // ── Right sidebar: posture + nuclear watch ────────────────────────────────────
 
 function PosturePanel({
-  conflict, aircraft, vessels, economic, isMobile, visible,
+  conflict, aircraft, vessels, isMobile, visible,
 }: {
   conflict: ConflictConfig
   aircraft: Aircraft[]
   vessels: Vessel[]
-  economic: ReturnType<typeof useEconomicData>
   isMobile: boolean
   visible: boolean
 }) {
@@ -906,6 +901,7 @@ export default function TheaterPage() {
   const [satOpacity,    setSatOpacity]    = useState<number>(0.85)
   const [heatmapWindow, setHeatmapWindow] = useState<HeatmapWindow>('24h')
   const [extendedIncidents, setExtendedIncidents] = useState<Incident[]>([])
+  const [counterData, setCounterData] = useState<{ dark_vessels: number; incidents_30d: number } | null>(null)
 
   type MobileTab = 'map' | 'intel' | 'posture'
   const isMobile = useMobile()
@@ -926,13 +922,26 @@ export default function TheaterPage() {
     return () => { cancelled = true }
   }, [slug, layers.heatmap, heatmapWindow])
 
+  // Counter data for navbar (AIS dark + 30d incidents)
+  useEffect(() => {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+    let cancelled = false
+    function fetchCounters() {
+      fetch(`${API_BASE}/api/conflicts/${slug}/counters`)
+        .then(r => r.ok ? r.json() : null)
+        .then((d: { dark_vessels: number; incidents_30d: number } | null) => { if (!cancelled && d) setCounterData(d) })
+        .catch(() => { /* non-fatal */ })
+    }
+    fetchCounters()
+    const id = setInterval(fetchCounters, 30_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [slug])
+
   const { aircraft }                     = useAircraftWebSocket(slug)
   const { vessels }                      = useVesselWebSocket(slug)
   const { incidents, status: incStatus } = useIncidentSSE(slug)
   const nuclearStatuses                  = useNuclearStatus(slug)
   const { report: sitrep, loading: sitrepLoading, pending: sitrepPending } = useSitrepReport(slug)
-  const economic = useEconomicData()
-
   // Phase 8C
   const { brief: morningBrief, pending: briefPending, loading: briefLoading } = useMorningBrief(slug)
   const { graph: entityGraph,  pending: graphPending, loading: graphLoading } = useEntityGraph(slug)
@@ -1020,8 +1029,6 @@ export default function TheaterPage() {
     )
   }
 
-  const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
-
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
@@ -1104,18 +1111,29 @@ export default function TheaterPage() {
             </div>
           )}
 
-          <span style={{
-            padding: '2px 6px',
-            background: `${intensityColor}20`,
-            border: `1px solid ${intensityColor}55`,
-            borderRadius: 2,
-            fontSize: 9, color: intensityColor,
-            fontFamily: "'Share Tech Mono', monospace",
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            animation: conflict.intensity === 'critical' ? 'pulse-opacity 1.5s ease-in-out infinite' : undefined,
-          }}>
-            {conflict.intensity.toUpperCase()}
-          </span>
+          {counterData && !isMobile && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 9, color: '#f97316', opacity: 0.7 }}>◉</span>
+                <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 13, fontWeight: 700, color: '#f97316' }}>
+                  {counterData.dark_vessels}
+                </span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  AIS DARK
+                </span>
+              </div>
+              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 9, color: '#eab308', opacity: 0.7 }}>◈</span>
+                <span style={{ fontFamily: "'Orbitron', monospace", fontSize: 13, fontWeight: 700, color: '#eab308' }}>
+                  {counterData.incidents_30d}
+                </span>
+                <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  30D INC
+                </span>
+              </div>
+            </>
+          )}
 
           {!isMobile && (
             <>
@@ -1145,9 +1163,6 @@ export default function TheaterPage() {
 
       {/* ── Breaking news ticker ────────────────────────────── */}
       <NewsTicker incidents={incidents} />
-
-      {/* ── Theater counters ────────────────────────────────── */}
-      {!isMobile && <TheaterCounters slug={slug} />}
 
       {/* ── Main content ────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -1282,7 +1297,6 @@ export default function TheaterPage() {
           conflict={conflict}
           aircraft={aircraft}
           vessels={vessels}
-          economic={economic}
           isMobile={isMobile}
           visible={!isMobile || mobileTab === 'posture'}
         />
@@ -1290,7 +1304,7 @@ export default function TheaterPage() {
 
         {/* Financial bar — below map + posture */}
         {!isMobile && (
-          <FinancialBar slug={conflict.slug} showOilRial={conflict.slug === 'us-iran'} />
+          <FinancialBar slug={conflict.slug} />
         )}
         </div>{/* end map column */}
       </div>{/* end main content row */}

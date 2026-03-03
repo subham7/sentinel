@@ -13,16 +13,17 @@ import type {
   PortWatchData, PortWatchChokepoint,
 } from '@sentinel/shared'
 
-// ── FRED ──────────────────────────────────────────────────────────────────────
+// ── FRED / Yahoo Finance macro signals ────────────────────────────────────────
 
 const FRED_BASE = 'https://api.stlouisfed.org/fred/series/observations'
 
-const FRED_TITLES: Record<string, string> = {
-  VIXCLS:           'CBOE Volatility Index (VIX)',
-  OVXCLS:           'CBOE Crude Oil Volatility (OVX)',
-  GOLDAMGBD228NLBM: 'Gold Price USD/oz (London AM Fix)',
+const FRED_META: Record<string, { title: string; yahooSymbol: string }> = {
+  VIXCLS:           { title: 'CBOE Volatility Index (VIX)',         yahooSymbol: '^VIX'  },
+  OVXCLS:           { title: 'CBOE Crude Oil Volatility (OVX)',      yahooSymbol: '^OVX'  },
+  GOLDAMGBD228NLBM: { title: 'Gold Price USD/oz (London AM Fix)',    yahooSymbol: 'GC=F'  },
 }
 
+// Fetch via FRED API (requires key)
 async function fetchFredSeries(seriesId: string, apiKey: string): Promise<FredData | null> {
   const url = `${FRED_BASE}?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=30`
   try {
@@ -31,34 +32,54 @@ async function fetchFredSeries(seriesId: string, apiKey: string): Promise<FredDa
     const json = await resp.json() as { observations: { date: string; value: string }[] }
     const rows = (json.observations ?? []).filter(o => o.value !== '.')
     if (!rows.length) return null
+    const value      = parseFloat(rows[0]?.value ?? '0')
+    const prev       = parseFloat(rows[1]?.value ?? String(value))
+    const change_pct = prev ? Math.round(((value - prev) / prev) * 10000) / 100 : 0
+    const history: FredPoint[] = rows.slice(0, 30).reverse()
+      .map(o => ({ date: o.date, value: parseFloat(o.value) }))
+    return { series_id: seriesId, title: FRED_META[seriesId]?.title ?? seriesId, value, prev, change_pct, history, updated_at: Date.now() }
+  } catch { return null }
+}
 
-    const value  = parseFloat(rows[0]?.value ?? '0')
-    const prev   = parseFloat(rows[1]?.value ?? String(value))
+// Fallback: Yahoo Finance chart (no API key required)
+async function fetchYahooMacro(seriesId: string): Promise<FredData | null> {
+  const meta = FRED_META[seriesId]
+  if (!meta) return null
+  try {
+    const { default: YFClass } = await import('yahoo-finance2')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const yf = new (YFClass as any)({ suppressNotices: ['yahooSurvey'] })
+    // Get quote for current value + change
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const q: any = await yf.quote(meta.yahooSymbol)
+    const value      = (q.regularMarketPrice as number) ?? 0
+    const prev       = (q.regularMarketPreviousClose as number) ?? value
     const change_pct = prev ? Math.round(((value - prev) / prev) * 10000) / 100 : 0
 
-    // History: oldest → newest (reverse the desc-sorted array, take up to 30)
-    const history: FredPoint[] = rows
-      .slice(0, 30)
-      .reverse()
-      .map(o => ({ date: o.date, value: parseFloat(o.value) }))
+    // Historical chart (90 days, daily) for sparkline — v3 API uses period1
+    const period1 = new Date(Date.now() - 90 * 86_400_000)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chart: any = await yf.chart(meta.yahooSymbol, { period1, interval: '1d' })
+    const history: FredPoint[] = (chart.quotes ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((pt: any) => pt.close != null)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((pt: any) => ({
+        date:  new Date((pt.date as Date)).toISOString().slice(0, 10),
+        value: Math.round((pt.close as number) * 100) / 100,
+      }))
+      .slice(-30)
 
-    return {
-      series_id:  seriesId,
-      title:      FRED_TITLES[seriesId] ?? seriesId,
-      value,
-      prev,
-      change_pct,
-      history,
-      updated_at: Date.now(),
-    }
-  } catch {
+    return { series_id: seriesId, title: meta.title, value, prev, change_pct, history, updated_at: Date.now() }
+  } catch (e) {
+    console.warn(`[financial] Yahoo fallback for ${seriesId}:`, (e as Error).message)
     return null
   }
 }
 
 // ── Equities (Yahoo Finance v2) ────────────────────────────────────────────────
 
-const DEFENSE_WATCHLIST = ['LMT', 'RTX', 'NOC', 'BA', 'GD']
+const DEFENSE_WATCHLIST = ['LMT', 'RTX', 'NOC', 'BA', 'GD', 'KTOS', 'LHX', 'ITA', 'ESLT']
 
 // Determine market status based on NYSE hours (ET)
 function getMarketStatus(): EquitiesData['market_status'] {
@@ -87,14 +108,18 @@ function isDST(d: Date): boolean {
 
 async function fetchEquities(): Promise<EquitiesData | null> {
   try {
-    const { default: yahooFinance } = await import('yahoo-finance2')
-    const quotes = await yahooFinance.quote(DEFENSE_WATCHLIST)
+    const { default: YFClass } = await import('yahoo-finance2')
+    // v3 API: construct instance with suppressNotices
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const yf = new (YFClass as any)({ suppressNotices: ['yahooSurvey'] })
+    const quotes = await yf.quote(DEFENSE_WATCHLIST)
 
-    const result: EquityQuote[] = (Array.isArray(quotes) ? quotes : [quotes]).map(q => ({
-      ticker:     (q as { symbol: string }).symbol,
-      name:       ((q as { shortName?: string }).shortName ?? (q as { symbol: string }).symbol).slice(0, 24),
-      price:      (q as { regularMarketPrice?: number }).regularMarketPrice ?? 0,
-      change_pct: Math.round(((q as { regularMarketChangePercent?: number }).regularMarketChangePercent ?? 0) * 100) / 100,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: EquityQuote[] = (Array.isArray(quotes) ? quotes : [quotes]).map((q: any) => ({
+      ticker:     q.symbol as string,
+      name:       ((q.shortName ?? q.symbol) as string).slice(0, 24),
+      price:      (q.regularMarketPrice as number) ?? 0,
+      change_pct: Math.round(((q.regularMarketChangePercent as number) ?? 0) * 100) / 100,
     }))
 
     return {
@@ -197,7 +222,7 @@ export async function registerFinancialRoutes(app: FastifyInstance): Promise<voi
   // FRED macro signals
   app.get<{ Params: { series: string } }>('/api/financial/fred/:series', async (req, reply) => {
     const seriesId = req.params.series.toUpperCase()
-    const allowed = Object.keys(FRED_TITLES)
+    const allowed = Object.keys(FRED_META)
     if (!allowed.includes(seriesId)) {
       return reply.status(400).send({ error: `Unknown series. Allowed: ${allowed.join(', ')}` })
     }
@@ -206,21 +231,26 @@ export async function registerFinancialRoutes(app: FastifyInstance): Promise<voi
     const cached = await cacheGet<FredData>(cacheKey)
     if (cached) return { ...cached, cache: 'HIT' }
 
+    // Try FRED first (if API key configured), then fall back to Yahoo Finance
     const apiKey = process.env.FRED_API_KEY
-    if (!apiKey) {
-      const stale = await cacheGet<FredData>(`${cacheKey}:stale`)
-      if (stale) return { ...stale, cache: 'STALE' }
-      return reply.status(202).send({ pending: true, message: 'FRED_API_KEY not configured' })
+    let data: FredData | null = null
+
+    if (apiKey) {
+      data = await fetchFredSeries(seriesId, apiKey)
     }
 
-    const data = await fetchFredSeries(seriesId, apiKey)
+    // Yahoo Finance fallback (no API key required)
+    if (!data) {
+      data = await fetchYahooMacro(seriesId)
+    }
+
     if (!data) {
       const stale = await cacheGet<FredData>(`${cacheKey}:stale`)
       if (stale) return { ...stale, cache: 'STALE' }
-      return reply.status(503).send({ error: 'FRED fetch failed' })
+      return reply.status(503).send({ error: 'Macro data fetch failed (FRED + Yahoo)' })
     }
 
-    await cacheSet(cacheKey,           data, 86_400)
+    await cacheSet(cacheKey,           data, 3_600)         // 1h cache
     await cacheSet(`${cacheKey}:stale`, data, 7 * 86_400)
     return { ...data, cache: 'MISS' }
   })
