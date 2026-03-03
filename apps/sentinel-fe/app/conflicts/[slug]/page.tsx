@@ -470,8 +470,6 @@ function PosturePanel({
           {[
             { label: 'Intensity', value: conflict.intensity.toUpperCase(), color: intensityColor },
             { label: 'Status',    value: conflict.status.toUpperCase(),    color: '#22c55e' },
-            { label: 'AC Total',  value: aircraft.length || '—', color: aircraft.length > 0 ? '#00b0ff' : 'var(--text-muted)' },
-            { label: 'Vessels',   value: vessels.length  || '—', color: vessels.length  > 0 ? '#22c55e' : 'var(--text-muted)' },
           ].map(({ label, value, color }) => (
             <div key={label}>
               <div style={{

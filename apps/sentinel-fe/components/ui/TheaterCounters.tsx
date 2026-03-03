@@ -22,10 +22,8 @@ const COUNTERS: {
   color: string
   icon:  string
 }[] = [
-  { key: 'aircraft_tracked', label: 'AC TRACKED',   color: '#00b0ff', icon: '✈' },
-  { key: 'vessels_tracked',  label: 'VS TRACKED',   color: '#22c55e', icon: '⚓' },
-  { key: 'dark_vessels',     label: 'AIS DARK',     color: '#f97316', icon: '◉' },
-  { key: 'incidents_30d',    label: '30D INCIDENTS', color: '#eab308', icon: '◈' },
+  { key: 'dark_vessels',  label: 'AIS DARK',     color: '#f97316', icon: '◉' },
+  { key: 'incidents_30d', label: '30D INCIDENTS', color: '#eab308', icon: '◈' },
 ]
 
 export default function TheaterCounters({ slug }: Props) {

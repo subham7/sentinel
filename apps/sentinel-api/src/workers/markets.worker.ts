@@ -211,7 +211,7 @@ async function pollMarkets(): Promise<void> {
           volume_total:     m.volume     ?? 0,
           close_time:       m.endDate    ?? null,
           active:           true,
-          url:              `https://polymarket.com/event/${m.slug ?? m.id}`,
+          url:              m.slug ? `https://polymarket.com/event/${m.slug}` : 'https://polymarket.com',
           relevance_score:  Math.round(finalScore * 1000) / 1000,
           matched_keywords: matched,
         })
