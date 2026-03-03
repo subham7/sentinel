@@ -1,5 +1,5 @@
 // Daily 06:00 UTC intelligence brief in BLUF format
-// Fallback chain: Groq 70B → Anthropic Claude → OpenRouter
+// Fallback chain: Groq 70B → Groq 8B → OpenRouter → Anthropic
 // Non-fatal if all providers absent
 
 import { ALL_CONFLICTS } from '@sentinel/shared'
@@ -98,6 +98,38 @@ async function callAnthropic(key: string, prompt: string): Promise<string | null
   return j.content.find(b => b.type === 'text')?.text ?? null
 }
 
+// ── JSON parser (validates + constructs MorningBrief) ─────────────────────────
+
+function parseBrief(raw: string, slug: string, date: string, sourcesStr: string, model: string): MorningBrief | null {
+  try {
+    // Strip markdown code fences if model wrapped the JSON
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    const p = JSON.parse(cleaned) as {
+      bluf?: string
+      judgments?: { confidence?: string; text?: string }[]
+      evidence?: string
+      outlook?: string
+      overall_confidence?: string
+    }
+    if (!p.bluf) return null   // minimum viable response check
+    const conf = (v?: string): 'HIGH' | 'MODERATE' | 'LOW' =>
+      (['HIGH', 'MODERATE', 'LOW'].includes(v ?? '') ? v as 'HIGH' | 'MODERATE' | 'LOW' : 'LOW')
+    return {
+      slug, date,
+      bluf:               p.bluf,
+      judgments:          (p.judgments ?? []).slice(0, 5).map(j => ({ confidence: conf(j.confidence), text: j.text ?? '' })),
+      evidence:           p.evidence ?? '',
+      outlook:            p.outlook  ?? '',
+      overall_confidence: conf(p.overall_confidence),
+      sources:            sourcesStr,
+      generated_at:       Date.now(),
+      model,
+    }
+  } catch {
+    return null
+  }
+}
+
 // ── Generator ─────────────────────────────────────────────────────────────────
 
 async function generateBrief(slug: string): Promise<MorningBrief | null> {
@@ -111,71 +143,70 @@ async function generateBrief(slug: string): Promise<MorningBrief | null> {
   const existing = await cacheGet<MorningBrief>(cacheKey)
   if (existing) return existing
 
-  const incidents = getRecentIncidents(slug, 24, 100)
-  const aircraft  = await cacheGet<unknown[]>(`aircraft:${slug}`)
-  const vessels   = await cacheGet<unknown[]>(`vessels:${slug}`)
-  const prompt    = buildPrompt(slug, incidents, aircraft?.length ?? 0, vessels?.length ?? 0)
+  const incidents  = getRecentIncidents(slug, 24, 100)
+  const aircraft   = await cacheGet<unknown[]>(`aircraft:${slug}`)
+  const vessels    = await cacheGet<unknown[]>(`vessels:${slug}`)
+  const prompt     = buildPrompt(slug, incidents, aircraft?.length ?? 0, vessels?.length ?? 0)
 
-  const bySource  = (src: string) => incidents.filter(i => i.source === src).length
+  const bySource   = (src: string) => incidents.filter(i => i.source === src).length
   const sourcesStr = [
     bySource('gdelt')    > 0 && `GDELT(n=${bySource('gdelt')})`,
     bySource('acled')    > 0 && `ACLED(n=${bySource('acled')})`,
     bySource('telegram') > 0 && `TELEGRAM(n=${bySource('telegram')})`,
   ].filter(Boolean).join(', ') || 'No active sources'
 
-  const groqKey      = process.env.GROQ_API_KEY
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const groqKey       = process.env.GROQ_API_KEY
   const openrouterKey = process.env.OPENROUTER_API_KEY
+  const anthropicKey  = process.env.ANTHROPIC_API_KEY
 
-  let raw:   string | null = null
-  let model: string        = 'unknown'
+  // Each step: call provider, parse JSON, return on first valid result.
+  // This ensures a bad/empty response from one provider doesn't block the rest.
 
-  if (groqKey && !raw) {
-    try { raw = await callOpenAICompat('https://api.groq.com/openai/v1', groqKey, 'llama-3.3-70b-versatile', prompt); if (raw) model = 'llama-3.3-70b' }
-    catch (e) { console.warn(`[brief] groq failed for ${slug}: ${(e as Error).message}`) }
-  }
-  if (anthropicKey && !raw) {
-    try { raw = await callAnthropic(anthropicKey, prompt); if (raw) model = 'claude-haiku-4-5' }
-    catch (e) { console.warn(`[brief] anthropic failed for ${slug}: ${(e as Error).message}`) }
-  }
-  if (openrouterKey && !raw) {
-    try { raw = await callOpenAICompat('https://openrouter.ai/api/v1', openrouterKey, 'meta-llama/llama-3.1-8b-instruct:free', prompt); if (raw) model = 'openrouter/llama-3.1-8b' }
-    catch (e) { console.warn(`[brief] openrouter failed for ${slug}: ${(e as Error).message}`) }
+  // 1. Groq llama-3.3-70b-versatile (primary)
+  if (groqKey) {
+    try {
+      const raw = await callOpenAICompat('https://api.groq.com/openai/v1', groqKey, 'llama-3.3-70b-versatile', prompt)
+      const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'llama-3.3-70b') : null
+      if (brief) { console.log(`[brief] ${slug} ✓ groq/llama-3.3-70b`); return brief }
+    } catch (e) { console.warn(`[brief] groq/70b failed for ${slug}: ${(e as Error).message}`) }
   }
 
-  if (!raw) return null
-
-  try {
-    const p = JSON.parse(raw) as {
-      bluf?: string
-      judgments?: { confidence?: string; text?: string }[]
-      evidence?: string
-      outlook?: string
-      overall_confidence?: string
-    }
-
-    const conf = (v?: string): 'HIGH' | 'MODERATE' | 'LOW' =>
-      (['HIGH', 'MODERATE', 'LOW'].includes(v ?? '') ? v as 'HIGH' | 'MODERATE' | 'LOW' : 'LOW')
-
-    const brief: MorningBrief = {
-      slug, date,
-      bluf:               p.bluf ?? '',
-      judgments:          (p.judgments ?? []).slice(0, 5).map(j => ({ confidence: conf(j.confidence), text: j.text ?? '' })),
-      evidence:           p.evidence ?? '',
-      outlook:            p.outlook  ?? '',
-      overall_confidence: conf(p.overall_confidence),
-      sources:            sourcesStr,
-      generated_at:       Date.now(),
-      model,
-    }
-
-    await cacheSet(cacheKey, brief, 23 * 3600)
-    await cacheSet(`${cacheKey}:stale`, brief, 7 * 86400)
-    console.log(`[brief] ${slug} ✓ ${date} via ${model}`)
-    return brief
-  } catch {
-    return null
+  // 2. Groq llama-3.1-8b-instant (higher quota, same key)
+  if (groqKey) {
+    try {
+      const raw = await callOpenAICompat('https://api.groq.com/openai/v1', groqKey, 'llama-3.1-8b-instant', prompt)
+      const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'llama-3.1-8b') : null
+      if (brief) { console.log(`[brief] ${slug} ✓ groq/llama-3.1-8b (fallback)`); return brief }
+    } catch (e) { console.warn(`[brief] groq/8b failed for ${slug}: ${(e as Error).message}`) }
   }
+
+  // 3. OpenRouter — free tier 70B (promoted above Anthropic)
+  if (openrouterKey) {
+    try {
+      const raw = await callOpenAICompat('https://openrouter.ai/api/v1', openrouterKey, 'meta-llama/llama-3.3-70b-instruct:free', prompt)
+      const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'openrouter/llama-3.3-70b') : null
+      if (brief) { console.log(`[brief] ${slug} ✓ openrouter/llama-3.3-70b (fallback)`); return brief }
+    } catch (e) { console.warn(`[brief] openrouter failed for ${slug}: ${(e as Error).message}`) }
+  }
+
+  // 4. Anthropic claude-haiku (last resort — costs money)
+  if (anthropicKey) {
+    try {
+      const raw = await callAnthropic(anthropicKey, prompt)
+      const brief = raw ? parseBrief(raw, slug, date, sourcesStr, 'claude-haiku-4-5') : null
+      if (brief) { console.log(`[brief] ${slug} ✓ anthropic/haiku (fallback)`); return brief }
+    } catch (e) { console.warn(`[brief] anthropic failed for ${slug}: ${(e as Error).message}`) }
+  }
+
+  // 5. Stale cache — serve yesterday's brief rather than nothing
+  const stale = await cacheGet<MorningBrief>(`${cacheKey}:stale`)
+  if (stale) {
+    console.warn(`[brief] ${slug} all providers failed — stale brief from ${stale.date} still cached`)
+    return null  // route serves stale; don't overwrite today's cache key
+  }
+
+  console.warn(`[brief] ${slug} all providers failed, no stale available`)
+  return null
 }
 
 // ── Scheduler ─────────────────────────────────────────────────────────────────

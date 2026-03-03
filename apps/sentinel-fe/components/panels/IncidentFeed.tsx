@@ -79,12 +79,12 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
         cursor: size === 'collapsed' ? 'pointer' : 'default',
       }}
     >
-      {/* Left: accent bar + label + live dot */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflow: 'hidden' }}>
+      {/* Left: accent bar + label */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, flex: 1, minWidth: 0 }}>
         <div style={{
           width: 3, alignSelf: 'stretch', background: FEED_ACCENT, flexShrink: 0,
         }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px', minWidth: 0 }}>
           <span style={{
             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
             background: dotColor,
@@ -92,37 +92,36 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
           }} />
           <span style={{
             fontFamily: "'Orbitron', monospace",
-            fontSize: 11, fontWeight: 700,
-            color: 'var(--text-primary)', letterSpacing: '0.1em',
+            fontSize: 10, fontWeight: 700,
+            color: 'var(--text-primary)', letterSpacing: '0.08em',
+            whiteSpace: 'nowrap',
           }}>
-            INCIDENT FEED
+            INCIDENTS
           </span>
-          {/* Event count badge */}
-          {incidents.length > 0 && (
-            <span style={{
-              fontSize: 9,
-              color: FEED_ACCENT,
-              background: `${FEED_ACCENT}18`,
-              border: `1px solid ${FEED_ACCENT}50`,
-              borderRadius: 2,
-              padding: '1px 6px',
-              fontFamily: "'Share Tech Mono', monospace",
-              letterSpacing: '0.08em',
-            }}>
-              {incidents.length} EVT
-            </span>
-          )}
           {size === 'collapsed' && (
-            <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+            <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
               — click to open
             </span>
           )}
         </div>
       </div>
 
-      {/* Right: analyst filter + expand / collapse controls */}
+      {/* Right: count + analyst filter + expand / collapse */}
       {size !== 'collapsed' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, paddingRight: 2 }}>
+          {/* Event count badge */}
+          {incidents.length > 0 && (
+            <span style={{
+              fontSize: 9, color: FEED_ACCENT,
+              background: `${FEED_ACCENT}18`,
+              border: `1px solid ${FEED_ACCENT}50`,
+              borderRadius: 2, padding: '2px 5px',
+              fontFamily: "'Share Tech Mono', monospace",
+              letterSpacing: '0.06em', whiteSpace: 'nowrap',
+            }}>
+              {incidents.length}
+            </span>
+          )}
           {/* Analyst mode toggle: T1-2 only */}
           <button
             title={analystMode ? 'Show all sources' : 'Analyst mode — T1 + T2 sources only'}
