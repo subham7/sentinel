@@ -137,9 +137,10 @@ Last updated: 2026-03-03
       Segments: event_type × theater × day_of_week × hour
       Alerts: 1.5σ elevated · 2.0σ significant · 3.0σ extreme
 - [ ] **AI morning brief (BLUF)** — already complete in Phase 8C ✅ (verify cron is live)
-- [ ] **Country Instability Index (CII)** — 0–100 composite score, 15-min update
-      Formula: `(baseline×0.4) + (unrest×0.2) + (security×0.2) + (infoVelocity×0.2)`
-      Home page: choropleth on globe · Theater header: colored badge
+- [x] **Country Instability Index (CII)** — 0–100 composite score, 15-min update
+      Formula: `(baseline×0.4) + (unrest×0.2) + (security×0.2) + (velocity×0.2)`
+      Service: `services/cii.service.ts` (browser-side, pure TS)
+      Theater header: colored badge (CII NN LEVEL) with tooltip breakdown
 
 ### Sprint 6: Content Enrichment
 - [ ] **Source credibility tiering** — extend ConflictConfig with `sources[]` array

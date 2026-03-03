@@ -34,6 +34,7 @@ import { detectSurge, detectStrikePackage } from '@/services/military-surge'
 import type { SurgeAlert } from '@/services/military-surge'
 import { detectAnomalies } from '@/services/anomaly.service'
 import type { AnomalyAlert } from '@/services/anomaly.service'
+import { computeCII } from '@/services/cii.service'
 import { useMorningBrief } from '@/hooks/useMorningBrief'
 import { useEntityGraph } from '@/hooks/useEntityGraph'
 import { useRhetoric } from '@/hooks/useRhetoric'
@@ -962,6 +963,7 @@ export default function TheaterPage() {
     () => detectAnomalies(slug, trend, incidents.length),
     [slug, trend, incidents.length],
   )
+  const cii = useMemo(() => computeCII(incidents, trend), [incidents, trend])
 
   const selectedAc = selectedAircraftId ? aircraft.find(a => a.icao24 === selectedAircraftId) ?? null : null
   const selectedVs = selectedVesselId   ? vessels.find(v => v.mmsi === selectedVesselId)      ?? null : null
@@ -1132,6 +1134,36 @@ export default function TheaterPage() {
                 <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                   30D INC
                 </span>
+              </div>
+            </>
+          )}
+
+          {!isMobile && incidents.length > 0 && (
+            <>
+              <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+              <div
+                title={`Country Instability Index — ${cii.score}/100\nBaseline: ${cii.baseline} · Unrest: ${cii.unrest} · Security: ${cii.security} · Velocity: ${cii.velocity}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '2px 7px',
+                  background: `${cii.color}18`,
+                  border: `1px solid ${cii.color}55`,
+                  borderRadius: 2,
+                  cursor: 'default',
+                }}
+              >
+                <span style={{
+                  fontSize: 8, color: 'var(--text-muted)',
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                }}>CII</span>
+                <span style={{
+                  fontFamily: "'Orbitron', monospace", fontSize: 12, fontWeight: 700,
+                  color: cii.color, letterSpacing: '0.04em', lineHeight: 1,
+                }}>{cii.score}</span>
+                <span style={{
+                  fontSize: 7, color: cii.color, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', opacity: 0.85,
+                }}>{cii.level}</span>
               </div>
             </>
           )}
