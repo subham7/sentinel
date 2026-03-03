@@ -42,7 +42,6 @@ export interface LayerState {
   countries:            boolean
   satellite_truecolor:   boolean
   satellite_nightlights: boolean
-  satellite_thermal:     boolean
   frontlines:           boolean
   adiz:                 boolean
   maritime:             boolean
@@ -487,9 +486,9 @@ export default function TheaterMap({
         const sk = `satellite_${key}` as keyof LayerState
         map.addSource(`sat-${key}`, {
           type:        'raster',
-          tiles:       [gibsTileUrl(cfg.id, satDateRef.current, cfg.fmt)],
+          tiles:       [gibsTileUrl(cfg.id, satDateRef.current, cfg.fmt, cfg.tms)],
           tileSize:    256,
-          maxzoom:     cfg.maxZoom,  // GoogleMapsCompatible_Level9 caps at zoom 8 — prevents 400s
+          maxzoom:     cfg.maxZoom,  // prevent 400s beyond TileMatrixSet limit
           attribution: 'NASA GIBS / EOSDIS',
         })
         map.addLayer({
@@ -1239,7 +1238,7 @@ export default function TheaterMap({
     for (const [key, cfg] of Object.entries(GIBS_LAYERS)) {
       const src = map.getSource(`sat-${key}`) as (maplibregl.RasterTileSource & { setTiles?: (t: string[]) => void }) | undefined
       if (src && typeof src.setTiles === 'function') {
-        src.setTiles([gibsTileUrl(cfg.id, date, cfg.fmt)])
+        src.setTiles([gibsTileUrl(cfg.id, date, cfg.fmt, cfg.tms)])
       }
     }
   }, [satDate, mapLoaded])

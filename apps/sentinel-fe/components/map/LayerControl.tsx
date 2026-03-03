@@ -62,7 +62,6 @@ function buildGroups(conflict: ConflictConfig): Group[] {
       items: [
         { key: 'satellite_truecolor',   label: GIBS_LAYERS.truecolor.label,   available: true, tip: GIBS_LAYERS.truecolor.tip },
         { key: 'satellite_nightlights', label: GIBS_LAYERS.nightlights.label, available: true, tip: GIBS_LAYERS.nightlights.tip },
-        { key: 'satellite_thermal',     label: GIBS_LAYERS.thermal.label,     available: true, tip: GIBS_LAYERS.thermal.tip },
       ],
     },
     {
@@ -75,7 +74,7 @@ function buildGroups(conflict: ConflictConfig): Group[] {
   return all.filter(g => g.items.some(i => i.available))
 }
 
-const SAT_KEYS: Array<keyof LayerState> = ['satellite_truecolor', 'satellite_nightlights', 'satellite_thermal']
+const SAT_KEYS: Array<keyof LayerState> = ['satellite_truecolor', 'satellite_nightlights']
 
 const HEATMAP_WINDOWS: { key: HeatmapWindow; label: string }[] = [
   { key: '24h', label: '24H' },

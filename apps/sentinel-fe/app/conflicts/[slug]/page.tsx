@@ -890,7 +890,6 @@ export default function TheaterPage() {
     countries:             true,
     satellite_truecolor:   false,
     satellite_nightlights: false,
-    satellite_thermal:     false,
     frontlines:            false,
     adiz:                  false,
     maritime:              false,
