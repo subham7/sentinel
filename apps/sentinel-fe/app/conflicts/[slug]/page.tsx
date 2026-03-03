@@ -13,7 +13,7 @@ import HormuzWidget from '@/components/panels/HormuzWidget'
 import { FinancialBar }   from '@/components/panels/FinancialBar'
 import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
-import AnalystChat from '@/components/panels/AnalystChat'
+// import AnalystChat from '@/components/panels/AnalystChat'
 import MediaFeed from '@/components/panels/MediaFeed'
 import LiveTVPanel from '@/components/panels/LiveTVPanel'
 import MorningBriefPanel from '@/components/panels/MorningBriefPanel'
@@ -849,8 +849,8 @@ function LeftIntelPanel({
               {/* SITREP */}
               <SitrepPanel report={sitrep} loading={sitrepLoading} pending={sitrepPending} />
 
-              {/* Analyst Chat */}
-              <AnalystChat slug={slug} />
+              {/* Analyst Chat — temporarily disabled */}
+              {/* <AnalystChat slug={slug} /> */}
 
               {/* Entity graph */}
               <EntityGraph graph={entityGraph} pending={graphPending} loading={graphLoading} slug={slug} />
