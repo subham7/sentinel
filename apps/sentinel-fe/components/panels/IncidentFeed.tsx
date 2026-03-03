@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Incident } from '@sentinel/shared'
+import { getTier, TIER_META } from '@sentinel/shared'
 
 const SEV_COLORS: Record<number, string> = {
   1: '#22c55e',
@@ -50,10 +51,15 @@ const FEED_ACCENT = '#f97316'
 export default function IncidentFeed({ incidents, onFlyTo, status, size, onChangeSize }: Props) {
   const isLive = status === 'connected'
   const dotColor = isLive ? '#22c55e' : status === 'error' ? '#ef4444' : '#eab308'
+  const [analystMode, setAnalystMode] = useState(false)
+
+  const visibleIncidents = analystMode
+    ? incidents.filter(i => getTier(i.source_url, i.source) <= 2)
+    : incidents
 
   const parentRef = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
-    count: incidents.length,
+    count: visibleIncidents.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 62,
     overscan: 5,
@@ -114,9 +120,28 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
         </div>
       </div>
 
-      {/* Right: expand / collapse controls */}
+      {/* Right: analyst filter + expand / collapse controls */}
       {size !== 'collapsed' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+          {/* Analyst mode toggle: T1-2 only */}
+          <button
+            title={analystMode ? 'Show all sources' : 'Analyst mode — T1 + T2 sources only'}
+            onClick={() => setAnalystMode(v => !v)}
+            style={{
+              background:   analystMode ? '#00b0ff22' : 'transparent',
+              border:       `1px solid ${analystMode ? '#00b0ff60' : 'var(--border-bright)'}`,
+              borderRadius: 2,
+              color:        analystMode ? '#00b0ff' : '#94a3b8',
+              cursor:       'pointer',
+              fontSize:     8,
+              letterSpacing: '0.1em',
+              padding:      '3px 6px',
+              fontFamily:   "'Share Tech Mono', monospace",
+              whiteSpace:   'nowrap',
+            }}
+          >
+            T1-2
+          </button>
           {/* Expand / shrink toggle */}
           <button
             title={size === 'expanded' ? 'Restore default size' : 'Expand feed'}
@@ -172,20 +197,22 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
       {header}
 
       <div ref={parentRef} style={{ overflowY: 'auto', flex: 1 }}>
-        {incidents.length === 0 ? (
+        {visibleIncidents.length === 0 ? (
           <div style={{
             padding: '20px 12px', textAlign: 'center',
             fontSize: 10, color: 'var(--text-muted)',
             fontFamily: "'Share Tech Mono', monospace", letterSpacing: '0.08em',
           }}>
-            {status === 'connecting' ? 'CONNECTING...' : '// NO INCIDENTS'}
+            {status === 'connecting' ? 'CONNECTING...' : analystMode ? '// NO T1-T2 SOURCES' : '// NO INCIDENTS'}
           </div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map(vItem => {
-              const inc = incidents[vItem.index]
+              const inc = visibleIncidents[vItem.index]
               if (!inc) return null
-              const color = SEV_COLORS[inc.severity] ?? '#94a3b8'
+              const color  = SEV_COLORS[inc.severity] ?? '#94a3b8'
+              const tier   = getTier(inc.source_url, inc.source)
+              const tierM  = TIER_META[tier]
               return (
                 <div
                   key={vItem.key}
@@ -220,6 +247,19 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
                         }}>
                           {SEV_LABELS[inc.severity]}
                         </span>
+                        {/* Credibility tier badge */}
+                        <span
+                          title={`Source credibility: ${tierM.label}${inc.source_url ? ` (${(() => { try { return new URL(inc.source_url!).hostname } catch { return '' } })()})` : ''}`}
+                          style={{
+                            fontSize: 7, color: tierM.color,
+                            padding: '1px 4px',
+                            background: tierM.bgColor,
+                            border: `1px solid ${tierM.borderColor}`,
+                            borderRadius: 2, letterSpacing: '0.08em',
+                          }}
+                        >
+                          {tierM.label}
+                        </span>
                         <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
                           {CAT_ICONS[inc.category] ?? '●'} {SOURCE_LABELS[inc.source] ?? inc.source}
                         </span>
@@ -229,13 +269,25 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
                       </span>
                     </div>
 
-                    {/* Title */}
+                    {/* Title + optional source link */}
                     <div style={{
                       fontSize: 11, color: 'var(--text-primary)', lineHeight: 1.4,
                       overflow: 'hidden', display: '-webkit-box',
                       WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                     }}>
-                      {inc.title}
+                      {inc.source_url ? (
+                        <a
+                          href={inc.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ color: 'inherit', textDecoration: 'none' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#00b0ff')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+                        >
+                          {inc.title}
+                        </a>
+                      ) : inc.title}
                     </div>
 
                     {/* Location */}

@@ -15,6 +15,7 @@ import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
 import MediaFeed from '@/components/panels/MediaFeed'
+import LiveTVPanel from '@/components/panels/LiveTVPanel'
 import MorningBriefPanel from '@/components/panels/MorningBriefPanel'
 import AnomalyBanner from '@/components/panels/AnomalyBanner'
 import RhetoricGauge from '@/components/panels/RhetoricGauge'
@@ -622,7 +623,7 @@ function PosturePanel({
 
 // ── Left intel panel: tracks + convergence/surge + sitrep + chat + feed ──────
 
-type IntelTab = 'intel' | 'brief' | 'media'
+type IntelTab = 'intel' | 'brief' | 'media' | 'tv'
 
 function LeftIntelPanel({
   conflict, aircraft, vessels, incidents, incidentStatus,
@@ -718,6 +719,11 @@ function LeftIntelPanel({
           <button style={tabStyle(intelTab === 'media')} onClick={() => setIntelTab('media')}>
             ◉ Media
           </button>
+          {(conflict.liveStreams?.length ?? 0) > 0 && (
+            <button style={tabStyle(intelTab === 'tv')} onClick={() => setIntelTab('tv')}>
+              ▶ TV
+            </button>
+          )}
         </div>
       )}
 
@@ -831,6 +837,11 @@ function LeftIntelPanel({
           {/* ── MEDIA tab ─────────────────────────────────────── */}
           {intelTab === 'media' && (
             <MediaFeed slug={slug} />
+          )}
+
+          {/* ── TV tab ────────────────────────────────────────── */}
+          {intelTab === 'tv' && (
+            <LiveTVPanel conflict={conflict} />
           )}
         </div>
       )}

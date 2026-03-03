@@ -143,12 +143,15 @@ Last updated: 2026-03-03
       Theater header: colored badge (CII NN LEVEL) with tooltip breakdown
 
 ### Sprint 6: Content Enrichment
-- [ ] **Source credibility tiering** — extend ConflictConfig with `sources[]` array
-      T1 blue (Reuters/AP/BBC) · T2 green (Haaretz/Kyiv Independent) · T3 amber (Bellingcat/ISW) · T4 red ⚠️ (RT/TASS/PressTV)
-      Filter toggle: "Tier 1–2 only" for analyst mode
-- [ ] **Live TV embed panel** — YouTube live stream IDs (no API key)
-      Lazy-load via Intersection Observer · auto-pause 5min · destroy when hidden
-      Per-theater presets: us-iran → Iran International + Al Arabiya + Bloomberg
+- [x] **Source credibility tiering** — `packages/shared/src/credibility.ts`
+      T1 blue (Reuters/AP/BBC) · T2 green (Haaretz/Kyiv Independent) · T3 amber (OSINT) · T4 red (RT/TASS/Telegram)
+      Domain map: 50+ outlets · `getTier(url, source)` fn · badge in IncidentFeed top row
+      Filter toggle: T1-2 button in IncidentFeed header (analyst mode)
+      Title attribute shows matched domain on hover
+- [x] **Live TV embed panel** — `panels/LiveTVPanel.tsx` (no API key)
+      IntersectionObserver lazy-pause · auto-close after 5 min · channel list with LIVE dot
+      TV tab in LeftIntelPanel (only shown when liveStreams configured)
+      Per-conflict presets: 4 channels each (us-iran/israel-gaza/russia-ukraine)
 - [ ] **Webcam grid panel** — 2×2 iframe grid, region tabs (ALL/MIDEAST/IRAN/EUROPE)
       Same Intersection Observer + pause pattern as TV embeds
 - [ ] **Telegram MTProto media extraction** — replace HTML scraper with `@mtcute/node`

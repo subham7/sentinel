@@ -110,6 +110,12 @@ export interface ConflictConfig {
     accentColor: string
     keyMetrics: string[]
   }
+
+  liveStreams?: {
+    name:      string
+    channelId: string    // YouTube channel ID → embed as live_stream?channel=
+    language?: string    // 'en' | 'ar' | 'fa' | 'he' | 'uk' | 'fr' | 'de'
+  }[]
 }
 
 // ─── US–Iran ──────────────────────────────────────────────────────────────────
@@ -241,6 +247,12 @@ export const US_IRAN: ConflictConfig = {
     accentColor: '#ef4444',
     keyMetrics: ['Aircraft tracked', 'AIS vessels', 'Incidents 24h', 'Strait status'],
   },
+  liveStreams: [
+    { name: 'Iran International',  channelId: 'UCQGqX5Ndpm4snE0NTjyOJnA', language: 'en' },
+    { name: 'Al Arabiya English',  channelId: 'UCVi-T_yLgBUBU9SZtAkpxwg', language: 'en' },
+    { name: 'Bloomberg TV',        channelId: 'UCIALMKvObZNtJ6AmdCLP7Lg', language: 'en' },
+    { name: 'Al Jazeera English',  channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', language: 'en' },
+  ],
 }
 
 // ─── Israel–Gaza ──────────────────────────────────────────────────────────────
@@ -320,6 +332,12 @@ export const ISRAEL_GAZA: ConflictConfig = {
     accentColor: '#00b0ff',
     keyMetrics: ['Aircraft tracked', 'Incidents 24h', 'Airstrikes', 'Casualties reported'],
   },
+  liveStreams: [
+    { name: 'Al Jazeera English', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', language: 'en' },
+    { name: 'France 24 English',  channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', language: 'en' },
+    { name: 'BBC News',           channelId: 'UC16niRr50-MSBwiCUoEnkBw', language: 'en' },
+    { name: 'i24 News',           channelId: 'UCR5fmFBFdWgNFU8nOcaWQZA', language: 'en' },
+  ],
 }
 
 // ─── Russia–Ukraine ────────────────────────────────────────────────────────────
@@ -403,6 +421,12 @@ export const RUSSIA_UKRAINE: ConflictConfig = {
     accentColor: '#3b82f6',
     keyMetrics: ['Aircraft tracked', 'AIS vessels', 'Incidents 24h', 'Front line'],
   },
+  liveStreams: [
+    { name: 'DW News',           channelId: 'UCknLrEdhRCp1aegoMqRaCZg', language: 'en' },
+    { name: 'France 24 English', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', language: 'en' },
+    { name: 'Euronews English',  channelId: 'UCg2ABCN5YBGvrgLidbq3DOA', language: 'en' },
+    { name: 'BBC News',          channelId: 'UC16niRr50-MSBwiCUoEnkBw', language: 'en' },
+  ],
 }
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
