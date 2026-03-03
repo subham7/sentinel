@@ -217,6 +217,27 @@ export interface PortWatchData {
   updated_at:  number
 }
 
+// ── Prediction Markets ──────────────────────────────────────────────────────
+
+export interface PredictionMarket {
+  id:              string
+  source:          'polymarket' | 'kalshi'
+  question:        string
+  probability:     number          // 0–1 YES probability
+  volume_24h:      number          // USD
+  volume_total:    number          // USD
+  close_time:      string | null   // ISO 8601
+  active:          boolean
+  url:             string
+  relevance_score: number          // 0–1 keyword+semantic match
+  matched_keywords: string[]       // which conflict keywords triggered this
+}
+
+export interface MarketsData {
+  markets:    PredictionMarket[]
+  updated_at: number
+}
+
 export interface SitrepReport {
   slug:           string
   summary:        string          // 2–3 AI sentences

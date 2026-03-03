@@ -22,6 +22,7 @@ import { registerMorningBriefRoutes } from './routes/morning-brief.js'
 import { registerRhetoricRoutes }     from './routes/rhetoric.js'
 import { registerEntityGraphRoutes }  from './routes/entity-graph.js'
 import { registerFinancialRoutes }    from './routes/financial.js'
+import { registerMarketsRoutes }      from './routes/markets.js'
 import { getRecentIncidents }        from './db/queries.js'
 import { startWorkers } from './workers/index.js'
 
@@ -161,6 +162,7 @@ await registerMorningBriefRoutes(app)
 await registerRhetoricRoutes(app)
 await registerEntityGraphRoutes(app)
 await registerFinancialRoutes(app)
+await registerMarketsRoutes(app)
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/counters', async (req, reply) => {
   const conflict = getConflict(req.params.slug)

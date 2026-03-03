@@ -13,6 +13,7 @@ import HormuzWidget from '@/components/panels/HormuzWidget'
 import OilPriceWidget from '@/components/panels/OilPriceWidget'
 import RialWidget from '@/components/panels/RialWidget'
 import { FinancialPanel } from '@/components/panels/FinancialPanel'
+import { MarketsPanel }   from '@/components/panels/MarketsPanel'
 import IncidentFeed, { type FeedSize } from '@/components/panels/IncidentFeed'
 import SitrepPanel from '@/components/panels/SitrepPanel'
 import AnalystChat from '@/components/panels/AnalystChat'
@@ -570,6 +571,11 @@ function PosturePanel({
           <FinancialPanel />
         </div>
       )}
+
+      {/* Prediction Markets Panel */}
+      <div style={{ padding: '8px 12px', flexShrink: 0 }}>
+        <MarketsPanel slug={conflict.slug} />
+      </div>
 
       {/* Sub-theaters */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

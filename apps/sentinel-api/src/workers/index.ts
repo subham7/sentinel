@@ -7,6 +7,7 @@ import { startIAEAWorker }         from './iaea.worker.js'
 import { startSitrepWorker }       from './sitrep.worker.js'
 import { startEconomicWorker }     from './economic.worker.js'
 import { startMorningBriefWorker } from './morning-brief.worker.js'
+import { startMarketsWorker }      from './markets.worker.js'
 
 export function startWorkers(): void {
   console.log('[workers] starting...')
@@ -19,4 +20,5 @@ export function startWorkers(): void {
   startSitrepWorker()
   startEconomicWorker()
   startMorningBriefWorker()
+  startMarketsWorker()
 }
