@@ -42,11 +42,14 @@ export default function MorningBriefPanel({ brief, pending, loading }: Props) {
         </div>
       ) : pending || !brief ? (
         <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 8 }}>
-            // BRIEF NOT YET GENERATED
+          <div style={{
+            fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 8,
+            animation: 'pulse-opacity 1.5s ease-in-out infinite',
+          }}>
+            // GENERATING BRIEF...
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-            Daily brief generates at 06:00 UTC. Requires GROQ_API_KEY or ANTHROPIC_API_KEY.
+            Briefing is being generated — this usually takes 15–30 seconds.
           </div>
         </div>
       ) : (

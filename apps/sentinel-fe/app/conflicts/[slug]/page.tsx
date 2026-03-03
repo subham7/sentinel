@@ -740,6 +740,41 @@ function LeftIntelPanel({
           {/* ── INTEL tab ─────────────────────────────────────── */}
           {intelTab === 'intel' && (
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+              {/* Compact BLUF teaser — click to open BRIEF tab */}
+              {morningBrief && (
+                <button
+                  onClick={() => setIntelTab('brief')}
+                  title="Open full morning brief"
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '7px 12px', flexShrink: 0,
+                    background: 'rgba(0,176,255,0.05)',
+                    borderBottom: '1px solid rgba(0,176,255,0.15)',
+                    borderLeft: '2px solid rgba(0,176,255,0.4)',
+                    cursor: 'pointer', border: 'none',
+                    borderBottomWidth: 1, borderBottomStyle: 'solid',
+                    borderBottomColor: 'rgba(0,176,255,0.15)',
+                    borderLeftWidth: 2, borderLeftStyle: 'solid',
+                    borderLeftColor: 'rgba(0,176,255,0.4)',
+                  }}
+                >
+                  <div style={{
+                    fontSize: 7, color: '#00b0ff', letterSpacing: '0.16em',
+                    fontFamily: "'Share Tech Mono', monospace", marginBottom: 3,
+                  }}>
+                    ◈ MORNING BRIEF — {morningBrief.date} UTC · {morningBrief.overall_confidence} CONFIDENCE
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4,
+                    fontFamily: "'Share Tech Mono', monospace",
+                    overflow: 'hidden', display: '-webkit-box',
+                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  }}>
+                    {morningBrief.bluf}
+                  </div>
+                </button>
+              )}
+
               {/* Anomaly banner (above everything) */}
               {anomalyAlerts.length > 0 && (
                 <AnomalyBanner alerts={anomalyAlerts} slug={slug} />
@@ -816,25 +851,16 @@ function LeftIntelPanel({
 
               {/* Analyst Chat */}
               <AnalystChat slug={slug} />
+
+              {/* Entity graph */}
+              <EntityGraph graph={entityGraph} pending={graphPending} loading={graphLoading} slug={slug} />
             </div>
           )}
 
           {/* ── BRIEF tab ─────────────────────────────────────── */}
           {intelTab === 'brief' && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Morning brief — scrollable, takes remaining space */}
-              <div style={{ flex: '1 1 0', overflowY: 'auto', minHeight: 60 }}>
-                <MorningBriefPanel brief={morningBrief} pending={briefPending} loading={briefLoading} />
-              </div>
-              {/* Entity graph — fixed-height section below brief */}
-              <div style={{
-                flexShrink: 0,
-                borderTop: '1px solid var(--border)',
-                overflowY: 'auto',
-                maxHeight: 420,
-              }}>
-                <EntityGraph graph={entityGraph} pending={graphPending} loading={graphLoading} slug={slug} />
-              </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <MorningBriefPanel brief={morningBrief} pending={briefPending} loading={briefLoading} />
             </div>
           )}
 
