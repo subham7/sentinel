@@ -1,7 +1,7 @@
 import WebSocket from 'ws'
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import type { Vessel, VesselSide, VesselType, ConflictConfig } from '@sentinel/shared'
-import { cacheGet, cacheSet } from '../services/cache.js'
+import { cacheGet, cacheSet, writeFreshness } from '../services/cache.js'
 import { insertVesselTrail, pruneOldVesselTrails, upsertSTSEvent } from '../db/queries.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -217,6 +217,8 @@ async function writeToCache(): Promise<void> {
   try {
     pruneOldVesselTrails(24)
   } catch { /* SQLite unavailable */ }
+
+  await writeFreshness('ais', 'ok')
 }
 
 // ── AISStream WebSocket ───────────────────────────────────────────────────────

@@ -5,6 +5,7 @@
 
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import { upsertNuclearSiteStatus } from '../db/queries.js'
+import { writeFreshness } from '../services/cache.js'
 
 const FEED_URL = 'https://www.iaea.org/rss/iran'
 const POLL_MS  = 7 * 24 * 60 * 60 * 1000   // weekly
@@ -54,10 +55,14 @@ async function poll(): Promise<void> {
       headers: { 'User-Agent': 'SENTINEL/1.0' },
       signal:  AbortSignal.timeout(15_000),
     })
-    if (!resp.ok) return
+    if (!resp.ok) {
+      await writeFreshness('iaea', 'error', `HTTP ${resp.status}`)
+      return
+    }
     xml = await resp.text()
   } catch (e) {
     console.warn('[iaea] fetch failed:', (e as Error).message)
+    await writeFreshness('iaea', 'error', (e as Error).message)
     return
   }
 
@@ -86,6 +91,7 @@ async function poll(): Promise<void> {
 
   if (updated > 0) console.log(`[iaea] ${updated} site status(es) updated from RSS`)
   else             console.log('[iaea] RSS polled — no status changes inferred')
+  await writeFreshness('iaea', 'ok')
 }
 
 export function startIAEAWorker(): void {

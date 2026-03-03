@@ -4,7 +4,7 @@
 
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import type { SitrepReport } from '@sentinel/shared'
-import { cacheGet, cacheSet } from '../services/cache.js'
+import { cacheGet, cacheSet, writeFreshness } from '../services/cache.js'
 import { getRecentIncidents }  from '../db/queries.js'
 
 const POLL_MS = 60 * 60 * 1000  // 1 hour
@@ -205,9 +205,11 @@ async function poll(): Promise<void> {
         await cacheSet(`sitrep:${conflict.slug}`,       report, 3_600)
         await cacheSet(`sitrep:${conflict.slug}:stale`, report, 86_400)
         console.log(`[sitrep] Cached sitrep for ${conflict.slug} — threat: ${report.threat_level} via ${report.model}`)
+        await writeFreshness(`sitrep:${conflict.slug}`, 'ok')
       }
     } catch (e) {
       console.warn(`[sitrep] poll error for ${conflict.slug}:`, (e as Error).message)
+      await writeFreshness(`sitrep:${conflict.slug}`, 'error', (e as Error).message)
     }
     // Brief pause between conflicts to avoid concurrent provider calls
     await new Promise(r => setTimeout(r, 3000))

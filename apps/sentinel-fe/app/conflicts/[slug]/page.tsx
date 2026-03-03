@@ -22,6 +22,9 @@ import RhetoricGauge from '@/components/panels/RhetoricGauge'
 import EntityGraph from '@/components/panels/EntityGraph'
 import LayerControl from '@/components/map/LayerControl'
 import CommandPalette from '@/components/CommandPalette'
+import NewsTicker from '@/components/ui/NewsTicker'
+import EmergencyHelplines from '@/components/ui/EmergencyHelplines'
+import TheaterCounters from '@/components/ui/TheaterCounters'
 import { useAircraftWebSocket } from '@/hooks/useAircraftWebSocket'
 import { useVesselWebSocket } from '@/hooks/useVesselWebSocket'
 import { useIncidentSSE } from '@/hooks/useIncidentSSE'
@@ -909,6 +912,7 @@ export default function TheaterPage() {
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number } | null>(null)
   const [feedSize, setFeedSize] = useState<FeedSize>('normal')
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [satDate,       setSatDate]       = useState<string>(yesterdayUTC)
   const [satOpacity,    setSatOpacity]    = useState<number>(0.85)
   const [heatmapWindow, setHeatmapWindow] = useState<HeatmapWindow>('24h')
@@ -970,6 +974,10 @@ export default function TheaterPage() {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
+      if (e.key === 'h' || e.key === 'H') {
+        setHelpOpen(o => !o)
+        return
+      }
       if (e.key === 'f' || e.key === 'F') {
         setFeedSize(s => s === 'collapsed' ? 'normal' : 'collapsed')
         return
@@ -1146,6 +1154,12 @@ export default function TheaterPage() {
         </div>
       </div>
 
+      {/* ── Breaking news ticker ────────────────────────────── */}
+      <NewsTicker incidents={incidents} />
+
+      {/* ── Theater counters ────────────────────────────────── */}
+      {!isMobile && <TheaterCounters slug={slug} />}
+
       {/* ── Main content ────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
@@ -1243,6 +1257,7 @@ export default function TheaterPage() {
               {([
                 { key: 'L',   desc: 'Layers'  },
                 { key: 'F',   desc: 'Feed'    },
+                { key: 'H',   desc: 'Help'    },
                 { key: '⌘K',  desc: 'Search'  },
                 { key: 'Esc', desc: 'Clear'   },
               ] as const).map(({ key, desc }) => (
@@ -1332,6 +1347,9 @@ export default function TheaterPage() {
         aircraft={aircraft}
         incidents={incidents}
       />
+
+      {/* ── Emergency helplines modal ────────────────────────── */}
+      <EmergencyHelplines open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
 }

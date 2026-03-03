@@ -68,6 +68,29 @@ export async function cacheSet<T>(key: string, value: T, ttlSeconds: number): Pr
   mem.set(key, { data: value, expires: Date.now() + ttlSeconds * 1000 })
 }
 
+// ── Data freshness ────────────────────────────────────────────────────────────
+// Each worker calls writeFreshness('adsb', 'ok') or ('adsb', 'error', msg)
+// after each poll cycle. The /api/health/freshness endpoint reads these.
+
+export async function writeFreshness(
+  sourceId: string,
+  result:   'ok' | 'error',
+  error?:   string,
+): Promise<void> {
+  const value = {
+    updatedAt: new Date().toISOString(),
+    result,
+    ...(error ? { error } : {}),
+  }
+  await cacheSet(`freshness:${sourceId}`, value, 7 * 86400)
+}
+
+export async function readFreshness(
+  sourceId: string,
+): Promise<{ updatedAt: string; result: 'ok' | 'error'; error?: string } | null> {
+  return cacheGet<{ updatedAt: string; result: 'ok' | 'error'; error?: string }>(`freshness:${sourceId}`)
+}
+
 // Stampede-safe fetch: prevents multiple concurrent fetches for the same key
 const inflight = new Map<string, Promise<unknown>>()
 

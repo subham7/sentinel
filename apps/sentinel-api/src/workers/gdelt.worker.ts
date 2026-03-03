@@ -8,6 +8,7 @@ import { classifyText }       from '../services/classification.js'
 import { isDuplicateIncident } from '../services/deduplication.js'
 import { incidentExists, insertIncident } from '../db/queries.js'
 import { emitIncident }       from '../services/incident-bus.js'
+import { writeFreshness }     from '../services/cache.js'
 
 const GDELT_GEO = 'https://api.gdeltproject.org/api/v2/geo/geo'
 const POLL_MS   = 15 * 60 * 1000   // 15 minutes
@@ -94,6 +95,7 @@ async function pollConflict(conflict: ConflictConfig): Promise<number> {
 }
 
 async function poll(): Promise<void> {
+  let anyError = false
   for (const conflict of ALL_CONFLICTS) {
     if (!conflict.dataSources.gdelt.enabled) continue
     try {
@@ -101,9 +103,11 @@ async function poll(): Promise<void> {
       if (n > 0) console.log(`[gdelt] ${conflict.slug}: +${n} incidents`)
     } catch (e) {
       console.warn(`[gdelt] ${conflict.slug} error:`, (e as Error).message)
+      anyError = true
     }
     await new Promise(r => setTimeout(r, 2000))  // 2s between conflicts
   }
+  await writeFreshness('gdelt', anyError ? 'error' : 'ok')
 }
 
 export function startGDELTWorker(): void {

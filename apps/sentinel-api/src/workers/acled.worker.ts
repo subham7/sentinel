@@ -9,6 +9,7 @@ import { isDuplicateIncident } from '../services/deduplication.js'
 import { incidentExists, insertIncident } from '../db/queries.js'
 import { emitIncident }        from '../services/incident-bus.js'
 import { getACLEDToken }       from '../services/acled-auth.js'
+import { writeFreshness }      from '../services/cache.js'
 
 const ACLED_URL = 'https://api.acleddata.com/acled/read'
 const POLL_MS   = 24 * 60 * 60 * 1000   // 24 hours
@@ -121,9 +122,11 @@ async function poll(): Promise<void> {
     token = await getACLEDToken()
   } catch (e) {
     console.warn('[acled] auth failed:', (e as Error).message)
+    await writeFreshness('acled', 'error', (e as Error).message)
     return
   }
 
+  let anyError = false
   for (const conflict of ALL_CONFLICTS) {
     if (!conflict.dataSources.acled.enabled) continue
     try {
@@ -132,9 +135,11 @@ async function poll(): Promise<void> {
       else       console.log(`[acled] ${conflict.slug}: no new events`)
     } catch (e) {
       console.warn(`[acled] ${conflict.slug} error:`, (e as Error).message)
+      anyError = true
     }
     await new Promise(r => setTimeout(r, 3000))
   }
+  await writeFreshness('acled', anyError ? 'error' : 'ok')
 }
 
 export function startACLEDWorker(): void {

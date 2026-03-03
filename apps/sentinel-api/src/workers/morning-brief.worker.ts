@@ -4,7 +4,7 @@
 
 import { ALL_CONFLICTS } from '@sentinel/shared'
 import type { MorningBrief } from '@sentinel/shared'
-import { cacheGet, cacheSet } from '../services/cache.js'
+import { cacheGet, cacheSet, writeFreshness } from '../services/cache.js'
 import { getRecentIncidents } from '../db/queries.js'
 
 function todayUTC(): string {
@@ -196,8 +196,13 @@ async function poll(): Promise<void> {
   const hasKey = !!(process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY)
   if (!hasKey) return
   for (const c of ALL_CONFLICTS) {
-    try { await generateBrief(c.slug) }
-    catch (e) { console.warn(`[brief] poll error ${c.slug}:`, (e as Error).message) }
+    try {
+      const brief = await generateBrief(c.slug)
+      if (brief) await writeFreshness(`morning-brief:${c.slug}`, 'ok')
+    } catch (e) {
+      console.warn(`[brief] poll error ${c.slug}:`, (e as Error).message)
+      await writeFreshness(`morning-brief:${c.slug}`, 'error', (e as Error).message)
+    }
     await new Promise(r => setTimeout(r, 2000))
   }
 }

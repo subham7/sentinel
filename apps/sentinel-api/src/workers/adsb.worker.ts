@@ -1,6 +1,6 @@
 import { ALL_CONFLICTS, classifyCallsign, sideFromHex, typeFromIcaoCode } from '@sentinel/shared'
 import type { Aircraft, AircraftSide, AircraftType, ConflictConfig } from '@sentinel/shared'
-import { cacheGet, cacheSet } from '../services/cache.js'
+import { cacheGet, cacheSet, writeFreshness } from '../services/cache.js'
 import { CircuitBreaker } from '../services/circuit-breaker.js'
 import { insertTrail, pruneOldTrails } from '../db/queries.js'
 
@@ -196,6 +196,9 @@ export function startADSBWorker(intervalMs = 30_000): ReturnType<typeof setInter
     running = true
     try {
       await runADSBWorker()
+      await writeFreshness('adsb', 'ok')
+    } catch (e) {
+      await writeFreshness('adsb', 'error', (e as Error).message)
     } finally {
       running = false
     }

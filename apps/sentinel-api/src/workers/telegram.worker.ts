@@ -10,6 +10,7 @@ import { isDuplicateIncident } from '../services/deduplication.js'
 import { incidentExists, insertIncident, telegramMediaExists, insertTelegramMedia, pruneOldMedia } from '../db/queries.js'
 import { emitIncident }        from '../services/incident-bus.js'
 import { getDb }               from '../db/index.js'
+import { writeFreshness }      from '../services/cache.js'
 
 const POLL_MS   = 4 * 60 * 1000   // 4 minutes
 const DELAY_MS  = 2500             // 2.5s between channel fetches (respect rate limit)
@@ -257,6 +258,7 @@ async function poll(): Promise<void> {
   if (_pollCount % 360 === 0) {
     try { pruneOldMedia(30) } catch { /* non-fatal */ }
   }
+  await writeFreshness('telegram', 'ok')
 }
 
 export function startTelegramWorker(): void {

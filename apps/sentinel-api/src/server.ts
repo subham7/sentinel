@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 loadDotenv({ path: resolve(fileURLToPath(import.meta.url), '../../../../.env') })
 import { ALL_CONFLICTS, getConflict } from '@sentinel/shared'
 import { getDb } from './db/index.js'
-import { cacheGet } from './services/cache.js'
+import { cacheGet, readFreshness } from './services/cache.js'
 import { registerAircraftRoutes }    from './routes/aircraft.js'
 import { registerVesselRoutes }      from './routes/vessels.js'
 import { registerIncidentRoutes }    from './routes/incidents.js'
@@ -44,6 +44,19 @@ app.get('/health', async () => ({
   uptime:    process.uptime(),
   timestamp: new Date().toISOString(),
 }))
+
+// ── Health / freshness ──────────────────────────────────────────────────────
+
+app.get('/api/health/freshness', async () => {
+  const sourceIds = ['adsb', 'ais', 'gdelt', 'acled', 'telegram', 'iaea']
+  const entries = await Promise.all(
+    sourceIds.map(async id => {
+      const data = await readFreshness(id)
+      return { id, updatedAt: data?.updatedAt ?? null, result: data?.result ?? null, error: data?.error ?? null }
+    }),
+  )
+  return { sources: entries, timestamp: Date.now() }
+})
 
 // ── Conflict registry ───────────────────────────────────────────────────────
 
@@ -146,6 +159,36 @@ await registerMediaRoutes(app)
 await registerMorningBriefRoutes(app)
 await registerRhetoricRoutes(app)
 await registerEntityGraphRoutes(app)
+
+app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/counters', async (req, reply) => {
+  const conflict = getConflict(req.params.slug)
+  if (!conflict) return reply.status(404).send({ error: 'Not found' })
+
+  const [aircraft, vessels] = await Promise.all([
+    cacheGet<unknown[]>(`aircraft:${conflict.slug}`),
+    cacheGet<unknown[]>(`vessels:${conflict.slug}`),
+  ])
+
+  const incidents30d = getRecentIncidents(conflict.slug, 720, 10_000).length
+  const acList = (aircraft ?? []) as { side: string }[]
+  const vsAll  = (vessels  ?? []) as { ais_dark?: boolean }[]
+
+  let darkVessels = 0
+  try {
+    const row = getDb()
+      .prepare('SELECT COUNT(*) AS n FROM ais_dark_events WHERE gap_ended_at IS NULL AND conflict_slug = ?')
+      .get(conflict.slug) as { n: number } | undefined
+    darkVessels = row?.n ?? 0
+  } catch { /* DB not ready */ }
+
+  return {
+    aircraft_tracked: acList.length,
+    vessels_tracked:  vsAll.length,
+    dark_vessels:     darkVessels,
+    incidents_30d:    incidents30d,
+    timestamp:        Date.now(),
+  }
+})
 
 app.get<{ Params: { slug: string } }>('/api/conflicts/:slug/theater', async (req, reply) => {
   const conflict = getConflict(req.params.slug)

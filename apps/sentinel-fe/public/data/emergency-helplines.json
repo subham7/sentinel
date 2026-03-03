@@ -1,0 +1,127 @@
+[
+  {
+    "country": "Iran",
+    "code": "IR",
+    "flag": "🇮🇷",
+    "lines": [
+      { "label": "Emergency",       "number": "115" },
+      { "label": "Police",          "number": "110" },
+      { "label": "Fire",            "number": "125" },
+      { "label": "ICRC Tehran",     "number": "+98 21 8874 1200" }
+    ]
+  },
+  {
+    "country": "Israel",
+    "code": "IL",
+    "flag": "🇮🇱",
+    "lines": [
+      { "label": "Emergency",       "number": "100 / 101 / 102" },
+      { "label": "Home Front Cmd",  "number": "104" },
+      { "label": "NATAL Trauma",    "number": "1201" },
+      { "label": "ICRC Tel Aviv",   "number": "+972 3 524 5286" }
+    ]
+  },
+  {
+    "country": "Lebanon",
+    "code": "LB",
+    "flag": "🇱🇧",
+    "lines": [
+      { "label": "Emergency",       "number": "112" },
+      { "label": "Red Cross",       "number": "01 372 802" },
+      { "label": "Civil Defence",   "number": "125" },
+      { "label": "UNHCR Beirut",    "number": "+961 1 850 100" }
+    ]
+  },
+  {
+    "country": "Yemen",
+    "code": "YE",
+    "flag": "🇾🇪",
+    "lines": [
+      { "label": "Emergency",       "number": "191" },
+      { "label": "ICRC Sanaa",      "number": "+967 1 446 956" },
+      { "label": "MSF",             "number": "+967 1 448 706" },
+      { "label": "OCHA",            "number": "+967 1 448 679" }
+    ]
+  },
+  {
+    "country": "Iraq",
+    "code": "IQ",
+    "flag": "🇮🇶",
+    "lines": [
+      { "label": "Emergency",       "number": "122" },
+      { "label": "Police",          "number": "104" },
+      { "label": "ICRC Baghdad",    "number": "+964 7901 954 000" },
+      { "label": "UNHCR Iraq",      "number": "+964 1 778 1670" }
+    ]
+  },
+  {
+    "country": "Jordan",
+    "code": "JO",
+    "flag": "🇯🇴",
+    "lines": [
+      { "label": "Emergency",       "number": "911" },
+      { "label": "UNHCR Amman",     "number": "+962 6 550 0600" },
+      { "label": "Red Crescent",    "number": "+962 6 477 4346" }
+    ]
+  },
+  {
+    "country": "UAE",
+    "code": "AE",
+    "flag": "🇦🇪",
+    "lines": [
+      { "label": "Emergency",       "number": "999" },
+      { "label": "Police",          "number": "999" },
+      { "label": "Ambulance",       "number": "998" }
+    ]
+  },
+  {
+    "country": "Saudi Arabia",
+    "code": "SA",
+    "flag": "🇸🇦",
+    "lines": [
+      { "label": "Emergency",       "number": "911" },
+      { "label": "Red Crescent",    "number": "997" },
+      { "label": "Civil Defence",   "number": "998" }
+    ]
+  },
+  {
+    "country": "Pakistan",
+    "code": "PK",
+    "flag": "🇵🇰",
+    "lines": [
+      { "label": "Emergency",       "number": "1122" },
+      { "label": "Police",          "number": "15" },
+      { "label": "ICRC Islamabad",  "number": "+92 51 282 1541" }
+    ]
+  },
+  {
+    "country": "Russia",
+    "code": "RU",
+    "flag": "🇷🇺",
+    "lines": [
+      { "label": "Emergency",       "number": "112" },
+      { "label": "ICRC Moscow",     "number": "+7 495 981 9120" }
+    ]
+  },
+  {
+    "country": "Ukraine",
+    "code": "UA",
+    "flag": "🇺🇦",
+    "lines": [
+      { "label": "Emergency",       "number": "112" },
+      { "label": "Police",          "number": "102" },
+      { "label": "ICRC Kyiv",       "number": "+380 44 247 7580" },
+      { "label": "Hotline",         "number": "0 800 500 335" }
+    ]
+  },
+  {
+    "country": "United States",
+    "code": "US",
+    "flag": "🇺🇸",
+    "lines": [
+      { "label": "Emergency",       "number": "911" },
+      { "label": "Crisis Line",     "number": "988" },
+      { "label": "State Dept",      "number": "+1 202 501 4444" }
+    ]
+  }
+]

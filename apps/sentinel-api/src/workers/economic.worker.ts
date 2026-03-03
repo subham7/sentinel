@@ -3,7 +3,7 @@
 // Rial: 30-min scrape of bonbast.com parallel market rate
 // Both non-fatal if data source unavailable
 
-import { cacheGet, cacheSet } from '../services/cache.js'
+import { cacheGet, cacheSet, writeFreshness } from '../services/cache.js'
 import type { OilPriceData, RialRateData } from '@sentinel/shared'
 
 const OIL_POLL_MS  = 60 * 60 * 1000   // 1 hour
@@ -52,8 +52,10 @@ async function pollOil(): Promise<void> {
     await cacheSet('economic:oil',       data, 3_600)
     await cacheSet('economic:oil:stale', data, 86_400)
     console.log(`[economic] oil: Brent $${brent.toFixed(2)} (${data.brent_change >= 0 ? '+' : ''}${data.brent_change.toFixed(2)})`)
+    await writeFreshness('economic_oil', 'ok')
   } catch (e) {
     console.warn('[economic] oil poll error:', (e as Error).message)
+    await writeFreshness('economic_oil', 'error', (e as Error).message)
   }
 }
 
@@ -138,6 +140,7 @@ async function pollRial(): Promise<void> {
   await cacheSet('economic:rial',       data, 1_800)
   await cacheSet('economic:rial:stale', data, 86_400)
   console.log(`[economic] rial: 1 USD = ${usd_irr.toLocaleString()} IRR (${change_24h >= 0 ? '+' : ''}${change_24h.toFixed(2)}%)`)
+  await writeFreshness('economic_rial', 'ok')
 }
 
 // ── Worker entry point ────────────────────────────────────────────────────────
