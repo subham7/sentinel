@@ -439,7 +439,6 @@ function PosturePanel({
   isMobile: boolean
   visible: boolean
 }) {
-  const intensityColor = INTENSITY_COLORS[conflict.intensity] ?? '#94a3b8'
   const hasNuclear = (conflict.overlays.nuclearSites?.length ?? 0) > 0
 
   const usCnt    = aircraft.filter(a => a.side === 'US').length
@@ -458,37 +457,6 @@ function PosturePanel({
       flexDirection: 'column', overflowY: 'auto',
       background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
     }}>
-      {/* Theater posture */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{
-          fontSize: 10, color: 'var(--text-secondary)', letterSpacing: '0.12em',
-          textTransform: 'uppercase', marginBottom: 8,
-        }}>
-          Theater Posture
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {[
-            { label: 'Intensity', value: conflict.intensity.toUpperCase(), color: intensityColor },
-            { label: 'Status',    value: conflict.status.toUpperCase(),    color: '#22c55e' },
-          ].map(({ label, value, color }) => (
-            <div key={label}>
-              <div style={{
-                fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase',
-                letterSpacing: '0.08em', marginBottom: 2,
-              }}>
-                {label}
-              </div>
-              <div style={{
-                fontFamily: "'Orbitron', monospace", fontSize: 13, fontWeight: 700,
-                color, letterSpacing: '0.04em',
-              }}>
-                {value}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Aircraft by side */}
       {aircraft.length > 0 && (
         <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -1115,6 +1083,19 @@ export default function TheaterPage() {
             animation: conflict.intensity === 'critical' ? 'pulse-opacity 1.5s ease-in-out infinite' : undefined,
           }}>
             {conflict.intensity.toUpperCase()}
+          </span>
+
+          <span style={{
+            padding: '2px 6px',
+            background: conflict.status === 'active' ? '#22c55e18' : '#94a3b818',
+            border: `1px solid ${conflict.status === 'active' ? '#22c55e55' : '#94a3b855'}`,
+            borderRadius: 2,
+            fontSize: 9,
+            color: conflict.status === 'active' ? '#22c55e' : '#94a3b8',
+            fontFamily: "'Share Tech Mono', monospace",
+            letterSpacing: '0.1em', textTransform: 'uppercase',
+          }}>
+            {conflict.status.toUpperCase()}
           </span>
 
           {!isMobile && (
