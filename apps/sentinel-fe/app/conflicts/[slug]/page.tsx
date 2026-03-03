@@ -878,6 +878,7 @@ export default function TheaterPage() {
     frontlines:            false,
     adiz:                  false,
     maritime:              false,
+    gpsjamming:            false,
   }
 
   const [layers, setLayers] = useState<LayerState>(() => {

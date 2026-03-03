@@ -47,6 +47,17 @@ function buildGroups(conflict: ConflictConfig): Group[] {
       ],
     },
     {
+      label: 'SIGNALS',
+      items: [
+        {
+          key:       'gpsjamming',
+          label:     'GPS Jamming ◈',
+          available: true,
+          tip:       'Daily GPS/GNSS interference detection from GPSJam.org — H3 hexagonal grid, color = jamming intensity (amber → red)',
+        },
+      ],
+    },
+    {
       label: 'SATELLITE',
       items: [
         { key: 'satellite_truecolor',   label: GIBS_LAYERS.truecolor.label,   available: true, tip: GIBS_LAYERS.truecolor.tip },

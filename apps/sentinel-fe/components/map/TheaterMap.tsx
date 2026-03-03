@@ -46,9 +46,30 @@ export interface LayerState {
   frontlines:           boolean
   adiz:                 boolean
   maritime:             boolean
+  gpsjamming:           boolean
 }
 
 export type HeatmapWindow = '24h' | '7d' | '30d'
+
+// ── GPS jamming GeoJSON (module-level daily cache) ────────────────────────────
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+let gpsjamCache: GeoJSON.FeatureCollection | null = null
+let gpsjamFetchDate = ''    // YYYY-MM-DD of cached data; refetch when date changes
+let gpsjamFetchPromise: Promise<GeoJSON.FeatureCollection | null> | null = null
+
+function fetchGpsJam(): Promise<GeoJSON.FeatureCollection | null> {
+  const today = new Date().toISOString().slice(0, 10)
+  if (gpsjamCache && gpsjamFetchDate === today) return Promise.resolve(gpsjamCache)
+  if (!gpsjamFetchPromise) {
+    gpsjamFetchPromise = fetch(`${API_BASE}/api/signals/gpsjam`)
+      .then(r => r.ok ? (r.json() as Promise<GeoJSON.FeatureCollection>) : null)
+      .then(data => { gpsjamCache = data; gpsjamFetchDate = today; return data })
+      .catch(() => null)
+      .finally(() => { gpsjamFetchPromise = null })
+  }
+  return gpsjamFetchPromise
+}
 
 // ── Natural Earth 110m country GeoJSON (module-level cache) ───────────────────
 
@@ -425,6 +446,12 @@ export default function TheaterMap({
     }
   }, [])
 
+  const applyGpsJammingVisibility = useCallback((map: maplibregl.Map, visible: boolean) => {
+    const v = visible ? 'visible' : 'none'
+    if (map.getLayer('gpsjam-fill')) map.setLayoutProperty('gpsjam-fill', 'visibility', v)
+    if (map.getLayer('gpsjam-line')) map.setLayoutProperty('gpsjam-line', 'visibility', v)
+  }, [])
+
   // ── Mount map ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -473,6 +500,49 @@ export default function TheaterMap({
           paint:  { 'raster-opacity': satOpacityRef.current },
         })
       }
+
+      // ── GPS/GNSS jamming hexagonal grid (above CARTO, below tracks) ──────
+      map.addSource('gpsjam', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },  // empty until fetch completes
+      })
+      map.addLayer({
+        id:     'gpsjam-fill',
+        type:   'fill',
+        source: 'gpsjam',
+        layout: { visibility: layersRef.current.gpsjamming ? 'visible' : 'none' },
+        paint:  {
+          'fill-color': [
+            'interpolate', ['linear'],
+            ['coalesce', ['to-number', ['get', 'jam']], ['*', ['to-number', ['get', 'level']], 0.333], 0],
+            0,    'rgba(0,0,0,0)',
+            0.15, 'rgba(234,179,8,0.12)',
+            0.35, 'rgba(249,115,22,0.35)',
+            0.65, 'rgba(239,68,68,0.55)',
+            1.0,  'rgba(239,68,68,0.78)',
+          ],
+          'fill-antialias': false,
+        },
+      })
+      // Subtle border for high-jam cells only
+      map.addLayer({
+        id:     'gpsjam-line',
+        type:   'line',
+        source: 'gpsjam',
+        layout: { visibility: layersRef.current.gpsjamming ? 'visible' : 'none' },
+        filter: ['>', ['coalesce', ['to-number', ['get', 'jam']], 0], 0.5],
+        paint:  {
+          'line-color': 'rgba(239,68,68,0.3)',
+          'line-width': 0.4,
+        },
+      })
+
+      // Populate GPS jam layer asynchronously
+      void fetchGpsJam().then(data => {
+        if (data && map.getSource('gpsjam')) {
+          (map.getSource('gpsjam') as maplibregl.GeoJSONSource).setData(data)
+        }
+      })
 
       // ── Aircraft SDF icon (white → tinted per-feature) ────────
       map.addImage('aircraft-sdf', createAircraftSDF(), { sdf: true })
@@ -1234,7 +1304,8 @@ export default function TheaterMap({
     applySatelliteVisibility(map, layers, satOpacityRef.current)
     applyFrontlineVisibility(map, layers.frontlines)
     applyAdizVisibility(map, layers.adiz, layers.maritime)
-  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility, applyCountriesVisibility, applySatelliteVisibility, applyFrontlineVisibility, applyAdizVisibility])
+    applyGpsJammingVisibility(map, layers.gpsjamming)
+  }, [layers, mapLoaded, applyMarkerVisibility, applySamVisibility, applyAircraftVisibility, applyVesselVisibility, applyIncidentVisibility, applyShippingLaneVisibility, applyCountriesVisibility, applySatelliteVisibility, applyFrontlineVisibility, applyAdizVisibility, applyGpsJammingVisibility])
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }

@@ -318,4 +318,40 @@ export async function registerFinancialRoutes(app: FastifyInstance): Promise<voi
     if (stale)  return { ...stale,  cache: 'STALE' }
     return reply.status(202).send({ pending: true })
   })
+
+  // GPS/GNSS jamming — GPSJam.org daily H3 hexagon GeoJSON, no auth
+  // Fetches yesterday's data (GPSJam.org has ~24h publication delay)
+  app.get('/api/signals/gpsjam', async (_req, reply) => {
+    const cached = await cacheGet('signals:gpsjam')
+    if (cached) return reply.send({ ...(cached as object), cache: 'HIT' })
+
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+
+    // GPSJam.org publishes daily GeoJSON at /geo/{YYYY-MM-DD}.geojson
+    const urls = [
+      `https://gpsjam.org/geo/${yesterday}.geojson`,
+      `https://gpsjam.org/gpsjam-${yesterday}.geojson`,
+    ]
+
+    let data: object | null = null
+    for (const url of urls) {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+        if (resp.ok) {
+          data = await resp.json() as object
+          break
+        }
+      } catch { /* try next URL */ }
+    }
+
+    if (!data) {
+      const stale = await cacheGet('signals:gpsjam:stale')
+      if (stale) return reply.send({ ...(stale as object), cache: 'STALE' })
+      return reply.status(503).send({ error: 'GPS jamming data unavailable' })
+    }
+
+    await cacheSet('signals:gpsjam',       data, 86_400)       // 24h
+    await cacheSet('signals:gpsjam:stale', data, 7 * 86_400)   // 7d stale fallback
+    return reply.send({ ...(data as object), cache: 'MISS' })
+  })
 }
