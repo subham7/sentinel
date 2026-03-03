@@ -3,7 +3,7 @@
 Multi-conflict geospatial intelligence platform. Tracks military aircraft, naval vessels,
 and OSINT incidents across active conflict theaters in real time.
 
-**Current status:** Phase 8 ✅ — All phases complete (8A 8B 8C 8D 8E)
+**Current status:** Phase 8 🔨 — Core sub-phases complete (8A partial · 8B partial · 8C ✅ · 8D partial · 8E deferred)
 
 ---
 
@@ -1067,11 +1067,11 @@ npm run build
 
 ---
 
-*Last updated: Phase 7 complete — all phases done.*
+*Last updated: Phase 8 in progress — see Phase 8 plan below for per-task status.*
 
 # SENTINEL — Phase 8 Development Plan
 
-> **Status:** Phase 7 ✅ complete. Phase 8 begins here.
+> **Status:** Phase 8 in progress. Core intelligence features shipped; advanced map + media infrastructure deferred.
 > **Scope:** Satellite imagery layer · Home page widget expansion ·
 > AI intelligence features · Telegram media scraping & display ·
 > Advanced map capabilities
@@ -2052,14 +2052,57 @@ TITILER_URL=http://localhost:8080
 ### Updated development phases section
 
 ```
-### Phase 8 — Full-Spectrum Intelligence Platform 🔨 CURRENT PHASE
+### Phase 8 — Full-Spectrum Intelligence Platform 🔨 IN PROGRESS
 
-Sub-phases (work in parallel):
-- [x] 8A: Satellite imagery layer (NASA GIBS, FIRMS, Copernicus)
-- [x] 8B: Home page widget expansion (counters, sparklines, radar, choropleth)
-- [x] 8C: AI intelligence features (morning brief, entity graph, anomaly detection, rhetoric gauge)
-- [x] 8D: Telegram media feed (HTML scraper, masonry gallery, lightbox)
-- [x] 8E: Advanced map capabilities (heatmap windows, frontlines, ADIZ, maritime, STS detection)
+#### Phase 8A — Satellite Imagery Layer (partial)
+- [x] 8A-1: NASA GIBS tile layers — True Color (VIIRS), Nighttime Lights, Thermal Anomalies
+- [x] 8A-3: Date picker with ◄/► day steppers in LayerControl
+- [x] 8A-7: SATELLITE group in LayerControl (3 checkboxes, opacity slider, tooltips)
+- [ ] 8A-2: NASA FIRMS thermal WMS overlay (requires FIRMS_MAP_KEY — deferred)
+- [ ] 8A-4: Copernicus Sentinel Hub WMS (requires OAuth credentials — deferred)
+- [ ] 8A-5: Before/after comparison slider (deferred)
+- [ ] 8A-6: STAC scene discovery API (deferred)
+
+#### Phase 8B — Home Page Widget Expansion (partial)
+- [x] 8B-1: Animated incident counters (GlobalIncidentCounter.tsx) — live counts above globe
+- [x] 8B-2: 30-day escalation sparklines per conflict card (ThreatSparklines.tsx)
+- [x] 8B-3: 6-axis threat radar chart per conflict card (ThreatRadar.tsx)
+- [x] 8B-5: Diplomatic event timeline with countdowns (DiplomaticTimeline.tsx)
+- [ ] 8B-4: Global conflict choropleth on globe (UCDP GED — deferred)
+- [ ] 8B-6: Draggable widget grid with localStorage layout (optional — deferred)
+
+#### Phase 8C — AI Intelligence Features ✅ COMPLETE
+- [x] 8C-1: Morning brief worker (06:00 UTC, BLUF format, Groq→Anthropic→OpenRouter fallback)
+       Routes: GET /api/conflicts/:slug/morning-brief
+       UI: MorningBriefPanel.tsx (BRIEF tab), useMorningBrief.ts
+- [x] 8C-3: Entity relationship graph (browser-side actor co-occurrence from 30d incidents)
+       Route: GET /api/conflicts/:slug/entity-graph
+       UI: EntityGraph.tsx (circular SVG, top actors table), useEntityGraph.ts
+- [x] 8C-4: Z-score anomaly detection — SPIKE (>2.5σ) + SURGE (7d avg vs prior period)
+       Service: anomaly.service.ts (browser-side)
+       UI: AnomalyBanner.tsx (dismissible, above incident feed)
+- [x] 8C-5: Rhetoric temperature gauge (0–100 escalatory language score, 4h cache)
+       Route: GET /api/conflicts/:slug/rhetoric (Groq llama-3.1-8b → Anthropic Haiku fallback)
+       UI: RhetoricGauge.tsx (semicircular speedometer), useRhetoric.ts
+- [x] useIncidentTrend.ts + GET /api/conflicts/:slug/incidents/trend?days=30
+- [ ] 8C-2: ConfliBERT NER microservice (Python/FastAPI sidecar — deferred; entity graph
+       uses simpler actor extraction from incident.actors JSON field instead)
+
+#### Phase 8D — Telegram Media Feed (partial)
+- [x] 8D-2: Media API endpoint — GET /api/conflicts/:slug/media (paginated, type filter)
+- [x] 8D-3: MediaFeed.tsx — masonry 2-column grid, lightbox, video playback (<video> element),
+       thumbnail_url for card previews, useMediaFeed.ts with pagination + SSE updates
+- [ ] 8D-1: MTProto media extraction (still using HTML scraper from Phase 3 — deferred)
+- [ ] 8D-4: Geotagged media map layer (MediaLayer.tsx — deferred)
+
+#### Phase 8E — Advanced Map Capabilities (deferred)
+- [ ] 8E-1: Heatmap time-window selector (24h/7d/30d/All)
+- [ ] 8E-2: Turf.js geofenced alert zones (draw + trigger)
+- [ ] 8E-3: deck.gl TripsLayer for animated aircraft trails
+- [ ] 8E-4: Frontline / territorial control layer (GeoJSON per conflict)
+- [ ] 8E-5: ADIZ and maritime boundary layers (EEZ, shipping lanes)
+- [ ] 8E-6: AIS ship-to-ship transfer detection
+- [ ] 8E-7: Web Push notifications for FLASH alerts (VAPID + Service Worker)
 ```
 
 ---
@@ -2084,20 +2127,31 @@ If working alone (sequential), the execution order is **8A → 8B → 8E → 8D 
 
 ## Definition of done — Phase 8 complete
 
-- [ ] Satellite tile layers toggle on theater maps; GIBS date picker works
-- [ ] Home page shows live counters, sparklines, radar charts, choropleth
-- [ ] Morning brief panel generates BLUF-format daily assessments
-- [ ] New incidents are NER-enriched within 15 minutes
-- [ ] Entity graph renders for each conflict
-- [ ] Telegram media appears in Media Feed panel within 5 minutes of posting
-- [ ] Geotagged media shows on map
-- [ ] Aircraft trails animate with TripsLayer
-- [ ] Geofenced alert zone fires correctly
-- [ ] Frontline layer renders for russia-ukraine
-- [ ] Adding a new conflict = one `ConflictConfig` object (unchanged from Phase 7)
+- [x] Satellite tile layers (True Color, Nighttime Lights, Thermal) toggle on theater maps
+- [x] GIBS date picker with ◄/► steppers changes tiles without map reload
+- [x] Home page shows live incident counters, 30-day sparklines, 6-axis radar charts
+- [x] Diplomatic event timeline with live countdowns on home page
+- [x] Morning brief panel generates BLUF-format daily assessments (06:00 UTC)
+- [x] Rhetoric gauge renders with live score per conflict (4h cache)
+- [x] Anomaly banner triggers on SPIKE (>2.5σ) and SURGE events
+- [x] Entity graph renders actor co-occurrence for each conflict
+- [x] Media Feed shows photos/videos (masonry grid, lightbox, video playback)
+- [x] Adding a new conflict = one `ConflictConfig` object (unchanged from Phase 7)
+- [ ] FIRMS thermal WMS overlay (requires FIRMS_MAP_KEY)
+- [ ] Copernicus Sentinel-2 10m imagery (requires credentials)
+- [ ] Global choropleth on home page globe
+- [ ] ConfliBERT NER enrichment pipeline (Python sidecar)
+- [ ] Geotagged media map layer (MediaLayer.tsx)
+- [ ] MTProto media extraction (currently using HTML scraper)
+- [ ] Aircraft trails with TripsLayer animation
+- [ ] Geofenced alert zones
+- [ ] Frontline layer (russia-ukraine)
+- [ ] ADIZ / maritime boundary layers
+- [ ] AIS ship-to-ship transfer detection
+- [ ] Web Push notifications for FLASH alerts
 
 ---
 
-*Phase 8 authored post–Phase 7 completion.*
+*Phase 8 in progress (2026-03-03). Core intelligence features shipped; advanced map + media infrastructure deferred.*
 *Previous phases: Foundations (0) · Aircraft (1) · Naval (2) · OSINT (3) ·
 Geographic Overlays (4) · AI Intelligence (5) · Economic & Cyber (6) · Polish (7)*
