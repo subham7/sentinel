@@ -10,6 +10,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import type { SourceStatus } from '@/hooks/useFinancialData'
 import { useMarketsData } from '@/hooks/useMarketsData'
+import { useIncidentTrend } from '@/hooks/useIncidentTrend'
+import { FinancialChart } from './FinancialChart'
 import type {
   OilFuturesData, OilPriceData, FredData, EquityQuote,
   PortWatchChokepoint, PredictionMarket, RialRateData,
@@ -188,18 +190,32 @@ function Skel({ style, hasError }: { style?: React.CSSProperties; hasError?: boo
 // ── Band 1: Signal Cards ───────────────────────────────────────────────────────
 
 // Compact card used in Band 1 (fixed width, 80px tall)
-function B1Card({ label, children, width = 130 }: { label: string; children: React.ReactNode; width?: number }) {
+function B1Card({ label, children, width = 130, onClick }: {
+  label:    string
+  children: React.ReactNode
+  width?:   number
+  onClick?: () => void
+}) {
   return (
-    <div style={{
-      width, flexShrink: 0, height: 76,
-      background: '#0d1224',
-      border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: 3, padding: '5px 8px',
-      display: 'flex', flexDirection: 'column', gap: 2,
-      overflow: 'hidden',
-    }}>
+    <div
+      {...(onClick ? { onClick } : {})}
+      style={{
+        width, flexShrink: 0, height: 76,
+        background: '#0d1224',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 3, padding: '5px 8px',
+        display: 'flex', flexDirection: 'column', gap: 2,
+        overflow: 'hidden',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'border-color 0.15s',
+      }}
+      {...(onClick ? {
+        onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => (e.currentTarget.style.borderColor = 'rgba(0,176,255,0.35)'),
+        onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'),
+      } : {})}
+    >
       <div style={{ fontSize: 7, color: '#475569', fontFamily: FM, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-        {label}
+        {label}{onClick && <span style={{ color: '#2d3748', marginLeft: 4 }}>↗</span>}
       </div>
       {children}
     </div>
@@ -239,11 +255,17 @@ function WarPremiumCard({ status, f }: { status: SourceStatus; f: OilFuturesData
   )
 }
 
-function OilCard({ label, price, change, history }: { label: string; price: number; change: number; history: number[] }) {
-  const col = pctColor(change)
+function OilCard({ label, price, change, history, onClick }: {
+  label:    string
+  price:    number
+  change:   number
+  history:  number[]
+  onClick?: () => void
+}) {
+  const col  = pctColor(change)
   const hist = history.length > 1 ? history : null
   return (
-    <B1Card label={label}>
+    <B1Card label={label} {...(onClick ? { onClick } : {})}>
       <span style={{ fontFamily: FD, fontSize: 16, fontWeight: 700, color: '#e2e8f0', lineHeight: 1 }}>
         ${price.toFixed(1)}
       </span>
@@ -255,7 +277,11 @@ function OilCard({ label, price, change, history }: { label: string; price: numb
   )
 }
 
-function OilPriceSection({ status, oil }: { status: SourceStatus; oil: OilPriceData | null }) {
+function OilPriceSection({ status, oil, onOpenChart }: {
+  status:       SourceStatus
+  oil:          OilPriceData | null
+  onOpenChart?: () => void
+}) {
   if (status === 'unconfigured') return null
   if (status !== 'ok' || !oil) {
     return (
@@ -265,10 +291,11 @@ function OilPriceSection({ status, oil }: { status: SourceStatus; oil: OilPriceD
       </>
     )
   }
+  const clickProps = onOpenChart ? { onClick: onOpenChart } : {}
   return (
     <>
-      <OilCard label="Brent Crude · EIA" price={oil.brent} change={oil.brent_change} history={oil.history} />
-      <OilCard label="WTI · EIA"         price={oil.wti}   change={oil.wti_change}   history={oil.history} />
+      <OilCard label="Brent Crude · EIA" price={oil.brent} change={oil.brent_change} history={oil.history} {...clickProps} />
+      <OilCard label="WTI · EIA"         price={oil.wti}   change={oil.wti_change}   history={oil.history} {...clickProps} />
     </>
   )
 }
@@ -684,6 +711,7 @@ export function FinancialBar({ slug }: Props) {
     if (typeof localStorage === 'undefined') return false
     return localStorage.getItem('finbar:collapsed') === '1'
   })
+  const [showChart, setShowChart] = useState(false)
 
   useEffect(() => {
     const s = localStorage.getItem('finbar:collapsed')
@@ -700,7 +728,8 @@ export function FinancialBar({ slug }: Props) {
 
   const { vix, ovx, gold, equities, currencies, portwatch, futures, oil, rial } = useFinancialData()
   const { data: marketsData, loading: marketsLoading } = useMarketsData(slug)
-  const markets = marketsData?.markets ?? []
+  const markets   = marketsData?.markets ?? []
+  const trendData = useIncidentTrend(slug, 60)
 
   const freshnessEntries: FEntry[] = [
     { label: 'EIA',       updatedAt: oil.data?.updated_at       ?? null, status: oil.status },
@@ -773,7 +802,11 @@ export function FinancialBar({ slug }: Props) {
             padding: '6px 8px', overflowX: 'auto',
           }}>
             <WarPremiumCard status={futures.status} f={futures.data} />
-            <OilPriceSection status={oil.status} oil={oil.data} />
+            <OilPriceSection
+              status={oil.status}
+              oil={oil.data}
+              {...(oil.status === 'ok' && oil.data ? { onOpenChart: () => setShowChart(true) } : {})}
+            />
             <FredCard status={vix.status}  series={vix.data}  />
             <FredCard status={ovx.status}  series={ovx.data}  />
             <FredCard status={gold.status} series={gold.data} />
@@ -817,6 +850,15 @@ export function FinancialBar({ slug }: Props) {
           )}
           {markets.map(m => <MarketCard key={m.id} m={m} />)}
         </div>
+      )}
+
+      {/* ── Oil price chart modal ─────────────────────────────────────────── */}
+      {showChart && oil.data && (
+        <FinancialChart
+          oil={oil.data}
+          trend={trendData}
+          onClose={() => setShowChart(false)}
+        />
       )}
     </div>
   )
