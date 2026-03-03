@@ -116,6 +116,11 @@ export interface ConflictConfig {
     channelId: string    // YouTube channel ID → embed as live_stream?channel=
     language?: string    // 'en' | 'ar' | 'fa' | 'he' | 'uk' | 'fr' | 'de'
   }[]
+
+  internetCountries?: {
+    iso2: string   // ISO 3166-1 alpha-2
+    name: string
+  }[]
 }
 
 // ─── US–Iran ──────────────────────────────────────────────────────────────────
@@ -247,6 +252,10 @@ export const US_IRAN: ConflictConfig = {
     accentColor: '#ef4444',
     keyMetrics: ['Aircraft tracked', 'AIS vessels', 'Incidents 24h', 'Strait status'],
   },
+  internetCountries: [
+    { iso2: 'IR', name: 'Iran'  },
+    { iso2: 'IQ', name: 'Iraq'  },
+  ],
   liveStreams: [
     { name: 'Iran International',  channelId: 'UCQGqX5Ndpm4snE0NTjyOJnA', language: 'en' },
     { name: 'Al Arabiya English',  channelId: 'UCVi-T_yLgBUBU9SZtAkpxwg', language: 'en' },
@@ -332,6 +341,10 @@ export const ISRAEL_GAZA: ConflictConfig = {
     accentColor: '#00b0ff',
     keyMetrics: ['Aircraft tracked', 'Incidents 24h', 'Airstrikes', 'Casualties reported'],
   },
+  internetCountries: [
+    { iso2: 'IL', name: 'Israel'    },
+    { iso2: 'LB', name: 'Lebanon'   },
+  ],
   liveStreams: [
     { name: 'Al Jazeera English', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', language: 'en' },
     { name: 'France 24 English',  channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', language: 'en' },
@@ -421,6 +434,10 @@ export const RUSSIA_UKRAINE: ConflictConfig = {
     accentColor: '#3b82f6',
     keyMetrics: ['Aircraft tracked', 'AIS vessels', 'Incidents 24h', 'Front line'],
   },
+  internetCountries: [
+    { iso2: 'UA', name: 'Ukraine' },
+    { iso2: 'RU', name: 'Russia'  },
+  ],
   liveStreams: [
     { name: 'DW News',           channelId: 'UCknLrEdhRCp1aegoMqRaCZg', language: 'en' },
     { name: 'France 24 English', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', language: 'en' },

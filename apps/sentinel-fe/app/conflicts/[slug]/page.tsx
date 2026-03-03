@@ -20,6 +20,7 @@ import MorningBriefPanel from '@/components/panels/MorningBriefPanel'
 import AnomalyBanner from '@/components/panels/AnomalyBanner'
 import RhetoricGauge from '@/components/panels/RhetoricGauge'
 import EntityGraph from '@/components/panels/EntityGraph'
+import InternetWidget from '@/components/panels/InternetWidget'
 import LayerControl from '@/components/map/LayerControl'
 import CommandPalette from '@/components/CommandPalette'
 import NewsTicker from '@/components/ui/NewsTicker'
@@ -548,6 +549,9 @@ function PosturePanel({
       {conflict.slug === 'us-iran' && vessels.length > 0 && (
         <HormuzWidget vessels={vessels} />
       )}
+
+      {/* Internet connectivity */}
+      <InternetWidget conflict={conflict} />
 
       {/* Sub-theaters */}
       <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

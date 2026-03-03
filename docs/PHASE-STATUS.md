@@ -112,22 +112,20 @@ Last updated: 2026-03-03
 - [ ] **Kalshi contracts** — `api.elections.kalshi.com/trade-api/v2`, no auth
       Prices in cents (÷100 for parity) · Merge with Polymarket in unified panel
 
-### Sprint 4: Map Intelligence
-- [ ] **Internet connectivity panel** — 3-bar widget per theater (Cloudflare + IODA + OONI)
-      Route: `GET /api/signals/internet/:countryCode`
-      Needs: `CLOUDFLARE_RADAR_TOKEN` (free)
+### Sprint 4: Map Intelligence ✅
+- [x] **Internet connectivity panel** — IODA + OONI + optional Cloudflare Radar
+      Route: `GET /api/signals/internet/:countryCode` · Cache: 15min · Stale: 4h
       Status: NORMAL / DEGRADED / DISRUPTED / BLOCKED
-- [ ] **GPS/GNSS jamming layer** — GPSJam.org daily GeoJSON, no auth
-      deck.gl `GridLayer`, opacity → jamming intensity, cache 24h
-      Layer group: SIGNALS · Color: transparent → amber → red
-- [ ] **VIIRS nighttime lights base layer** — NASA GIBS, no API key
-      Alternative base map; date picker for blackout detection
-- [ ] **SAM engagement ring visualization** — static `data/sam-positions.json`
-      deck.gl ScatterplotLayer (center) + circle primitive (engagement envelope)
-      Color: blue = US/Allied, red = Iran/adversary, green = Israel
-- [ ] **Time-windowed incident heatmap** — deck.gl `HeatmapLayer` time selector
-      Windows: 24H / 7D / 30D / ALL · Weight = incident severity (1–5)
-      Auto-activates when >50 incidents visible
+      `ConflictConfig.internetCountries[]` per theater · `InternetWidget.tsx` in PosturePanel
+      Optional: `CLOUDFLARE_RADAR_TOKEN` (adds CF netflow bar)
+- [x] **GPS/GNSS jamming layer** — GPSJam.org daily GeoJSON, no auth (commit 96e7594)
+      MapLibre fill + line layers · SIGNALS group in LayerControl · amber → red
+- [x] **VIIRS nighttime lights base layer** — NASA GIBS, no API key (Phase 8A)
+      Satellite group with date picker and opacity slider
+- [x] **SAM engagement ring visualization** — MapLibre circles via turf (Phase 4)
+      Color-coded by party · toggle in LayerControl
+- [x] **Time-windowed incident heatmap** — 24H / 7D / 30D windows (Phase 3+)
+      Weight = severity · extended fetch for 7d/30d windows
 
 ### Sprint 5: AI Signal Processing
 - [ ] **Two-stage event classifier** — keyword lexicon Stage 1 + Groq 8B Stage 2
