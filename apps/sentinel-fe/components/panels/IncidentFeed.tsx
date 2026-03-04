@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Incident } from '@sentinel/shared'
-import { getTier, TIER_META } from '@sentinel/shared'
+import { getTier, TIER_META, rssFeedLabel, isRssPropagandaRisk } from '@sentinel/shared'
 
 const SEV_COLORS: Record<number, string> = {
   1: '#22c55e',
@@ -19,6 +19,12 @@ const SEV_LABELS: Record<number, string> = {
 
 const SOURCE_LABELS: Record<string, string> = {
   gdelt: 'GDL', acled: 'ACL', telegram: 'TG', manual: 'MAN',
+  gnews: 'GNEWS', newsdata: 'NWSD',
+}
+
+function getSourceLabel(inc: Incident): string {
+  if (inc.source === 'rss') return rssFeedLabel(inc.source_id)
+  return SOURCE_LABELS[inc.source] ?? inc.source.toUpperCase()
 }
 
 const CAT_ICONS: Record<string, string> = {
@@ -260,8 +266,23 @@ export default function IncidentFeed({ incidents, onFlyTo, status, size, onChang
                           {tierM.label}
                         </span>
                         <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                          {CAT_ICONS[inc.category] ?? '●'} {SOURCE_LABELS[inc.source] ?? inc.source}
+                          {CAT_ICONS[inc.category] ?? '●'} {getSourceLabel(inc)}
                         </span>
+                        {/* ⚠ STATE MEDIA badge for T4 propaganda-risk feeds */}
+                        {tier === 4 && (inc.source === 'rss'
+                          ? isRssPropagandaRisk(inc.source_id)
+                          : inc.source === 'telegram') && (
+                          <span style={{
+                            fontSize: 7, color: '#ef4444',
+                            padding: '1px 4px',
+                            background: '#ef444418',
+                            border: '1px solid #ef444440',
+                            borderRadius: 2, letterSpacing: '0.08em',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            ⚠ STATE
+                          </span>
+                        )}
                       </div>
                       <span style={{ fontSize: 8, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
                         {timeAgo(inc.timestamp)}

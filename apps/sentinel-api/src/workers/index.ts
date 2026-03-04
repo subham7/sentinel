@@ -8,6 +8,8 @@ import { startSitrepWorker }       from './sitrep.worker.js'
 import { startEconomicWorker }     from './economic.worker.js'
 import { startMorningBriefWorker } from './morning-brief.worker.js'
 import { startMarketsWorker }      from './markets.worker.js'
+import { startRSSWorker }          from './rss.worker.js'
+import { startNewsAPIWorker }      from './news-api.worker.js'
 
 export function startWorkers(): void {
   console.log('[workers] starting...')
@@ -21,4 +23,6 @@ export function startWorkers(): void {
   startEconomicWorker()
   startMorningBriefWorker()
   startMarketsWorker()
+  startRSSWorker()
+  startNewsAPIWorker()
 }

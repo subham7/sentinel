@@ -42,12 +42,13 @@ export type IncidentCategory =
 
 export type IncidentSeverity = 1 | 2 | 3 | 4 | 5
 
-export type IncidentSource = 'gdelt' | 'acled' | 'telegram' | 'manual'
+export type IncidentSource = 'gdelt' | 'acled' | 'telegram' | 'manual' | 'rss' | 'gnews' | 'newsdata'
 
 export interface Incident {
   id: string
   conflict_slugs: string[]
   source: IncidentSource
+  source_id?: string    // opaque id: e.g. 'rss:{feedId}:{hash}' for RSS
   timestamp: string     // ISO 8601
   lat: number
   lon: number

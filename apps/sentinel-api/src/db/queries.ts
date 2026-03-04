@@ -67,7 +67,8 @@ export function pruneOldVesselTrails(maxAgeHours = 24): void {
 // ── Incidents ─────────────────────────────────────────────────────────────────
 
 interface IncidentRow {
-  id: string; conflict_slugs: string; source: string; timestamp: string
+  id: string; conflict_slugs: string; source: string; source_id: string | null
+  timestamp: string
   lat: number | null; lon: number | null; location_name: string | null
   category: string; severity: number; title: string; summary: string | null
   actors: string | null; source_url: string | null; confidence: number | null
@@ -80,12 +81,12 @@ export function incidentExists(id: string): boolean {
 export function insertIncident(inc: Incident): void {
   getDb().prepare(`
     INSERT OR IGNORE INTO incidents
-      (id, conflict_slugs, source, timestamp, lat, lon, location_name,
+      (id, conflict_slugs, source, source_id, timestamp, lat, lon, location_name,
        category, severity, title, summary, actors, source_url, confidence)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    inc.id, JSON.stringify(inc.conflict_slugs), inc.source, inc.timestamp,
-    inc.lat, inc.lon, inc.location_name, inc.category, inc.severity,
+    inc.id, JSON.stringify(inc.conflict_slugs), inc.source, inc.source_id ?? null,
+    inc.timestamp, inc.lat, inc.lon, inc.location_name, inc.category, inc.severity,
     inc.title, inc.summary, JSON.stringify(inc.actors),
     inc.source_url ?? null, inc.confidence,
   )
@@ -103,6 +104,7 @@ export function getRecentIncidents(slug: string, hoursBack = 24, limit = 200): I
     id:             r.id,
     conflict_slugs: JSON.parse(r.conflict_slugs) as string[],
     source:         r.source as Incident['source'],
+    ...(r.source_id  ? { source_id:  r.source_id  } : {}),
     timestamp:      r.timestamp,
     lat:            r.lat ?? 0,
     lon:            r.lon ?? 0,
