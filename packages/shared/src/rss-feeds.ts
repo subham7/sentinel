@@ -46,32 +46,26 @@ export const ALL_RSS_FEEDS: RssFeed[] = [
     url: 'https://www.idf.il/en/rss/',
     label: 'IDF', theaters: ['israel-gaza'], pollIntervalMinutes: 10,
   },
+  // NATO dropped public RSS — removed
   {
-    id: 'nato', tier: 1, propagandaRisk: false, language: 'en',
-    url: 'https://www.nato.int/cps/en/natolive/news.rss',
-    label: 'NATO', theaters: ['russia-ukraine'], pollIntervalMinutes: 30,
-  },
-  {
+    // ICRC migrated newsroom to icrcnewsroom.org
     id: 'icrc', tier: 1, propagandaRisk: false, language: 'en',
-    url: 'https://www.icrc.org/en/rss.xml',
+    url: 'https://www.icrcnewsroom.org/feed',
     label: 'ICRC', theaters: ['all'], pollIntervalMinutes: 60,
   },
 
   // ── Tier 2 — Credible Regional ──────────────────────────────────────────────
 
-  {
-    id: 'iran-intl', tier: 2, propagandaRisk: false, language: 'en',
-    url: 'https://www.iranintl.com/en/rss',
-    label: 'IRAN INTL', theaters: ['us-iran'], pollIntervalMinutes: 10,
-  },
+  // Iran International blocked all RSS (403) — removed
   {
     id: 'times-of-israel', tier: 2, propagandaRisk: false, language: 'en',
     url: 'https://www.timesofisrael.com/feed/',
     label: 'TOI', theaters: ['israel-gaza'], pollIntervalMinutes: 10,
   },
   {
+    // Kyiv Independent uses Next.js — root /feed/ is 404, category path works
     id: 'kyiv-independent', tier: 2, propagandaRisk: false, language: 'en',
-    url: 'https://kyivindependent.com/feed/',
+    url: 'https://kyivindependent.com/feed/news/',
     label: 'KYIV IND', theaters: ['russia-ukraine'], pollIntervalMinutes: 10,
   },
   {
@@ -89,14 +83,11 @@ export const ALL_RSS_FEEDS: RssFeed[] = [
     url: 'https://www.middleeasteye.net/rss',
     label: 'MEE', theaters: ['us-iran'], pollIntervalMinutes: 15,
   },
+  // Rudaw removed all RSS feeds from their site — removed
   {
-    id: 'rudaw', tier: 2, propagandaRisk: false, language: 'en',
-    url: 'https://www.rudaw.net/english/rss.xml',
-    label: 'RUDAW', theaters: ['us-iran'], pollIntervalMinutes: 30,
-  },
-  {
+    // RFE/RL rotates feed API keys — current News feed key confirmed working
     id: 'rferl', tier: 2, propagandaRisk: false, language: 'en',
-    url: 'https://www.rferl.org/api/epiqqdiqei',
+    url: 'https://www.rferl.org/api/zbqiml-vomx-tpeqkmy',
     label: 'RFE/RL', theaters: ['all'], pollIntervalMinutes: 15,
   },
   {
@@ -112,11 +103,7 @@ export const ALL_RSS_FEEDS: RssFeed[] = [
 
   // ── Tier 3 — OSINT / Monitoring ─────────────────────────────────────────────
 
-  {
-    id: 'isw', tier: 3, propagandaRisk: false, language: 'en',
-    url: 'https://www.understandingwar.org/rss.xml',
-    label: 'ISW', theaters: ['russia-ukraine'], pollIntervalMinutes: 60,
-  },
+  // ISW (understandingwar.org) blocks all automated access (403) — removed
   {
     id: 'bellingcat', tier: 3, propagandaRisk: false, language: 'en',
     url: 'https://www.bellingcat.com/feed/',

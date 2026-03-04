@@ -38,6 +38,11 @@ const parser = new RSSParser<Record<string, unknown>, CustomItem>({
     ],
   },
   timeout: 20_000,
+  headers: {
+    // Some servers (406 Not Acceptable) reject requests without a browser UA
+    'User-Agent': 'Mozilla/5.0 (compatible; SentinelBot/1.0; +https://sentinelnetwork.info)',
+    'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+  },
 })
 
 // Resolve feed theaters → actual conflict slugs
