@@ -51,7 +51,7 @@ function resolveTheaters(feed: RssFeed): string[] {
   return feed.theaters.filter(t => ALL_CONFLICTS.some(c => c.slug === t))
 }
 
-// For multi-theater feeds, filter slugs to those whose keywords match the item text
+// Filter theater slugs to those whose keywords appear in the item text
 function filterByKeywords(text: string, slugs: string[]): string[] {
   const lower = text.toLowerCase()
   return slugs.filter(slug => {
@@ -72,7 +72,6 @@ async function processFeed(feed: RssFeed): Promise<void> {
   }
 
   const allTheaterSlugs = resolveTheaters(feed)
-  const isAllTheater    = feed.theaters.includes('all')
   let inserted          = 0
 
   for (const item of feedObj.items ?? []) {
@@ -91,10 +90,9 @@ async function processFeed(feed: RssFeed): Promise<void> {
     const cls = await classifyText(text)
     if (!cls || !cls.is_conflict_related) continue
 
-    // Determine conflict slugs
-    const conflictSlugs = isAllTheater
-      ? filterByKeywords(text, allTheaterSlugs)
-      : allTheaterSlugs
+    // Determine conflict slugs — always keyword-filter so single-theater feeds
+    // (e.g. TASS → russia-ukraine) don't ingest off-topic articles about other conflicts
+    const conflictSlugs = filterByKeywords(text, allTheaterSlugs)
     if (conflictSlugs.length === 0) continue
 
     // Parse timestamp (fallback to now)
