@@ -945,7 +945,7 @@ export default function TheaterPage() {
   const [extendedIncidents, setExtendedIncidents] = useState<Incident[]>([])
   const [counterData, setCounterData] = useState<{ dark_vessels: number; incidents_30d: number } | null>(null)
 
-  type MobileTab = 'map' | 'intel' | 'posture'
+  type MobileTab = 'map' | 'intel' | 'posture' | 'finance'
   const isMobile = useMobile()
   const [mobileTab, setMobileTab] = useState<MobileTab>('map')
 
@@ -1276,16 +1276,16 @@ export default function TheaterPage() {
 
         {/* Map column: map row + financial bar */}
         <div style={{
-          display: (!isMobile || mobileTab === 'map') ? 'flex' : 'none',
+          display: (!isMobile || mobileTab === 'map' || mobileTab === 'posture') ? 'flex' : 'none',
           flex: 1, flexDirection: 'column', overflow: 'hidden',
         }}>
 
         {/* Map + posture row */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Map area */}
+        {/* Map area — hidden on mobile posture tab to give PosturePanel full width */}
         <div style={{
-          display: 'flex',
+          display: (!isMobile || mobileTab === 'map') ? 'flex' : 'none',
           flex: 1, position: 'relative', overflow: 'hidden',
         }}>
           <TheaterMap
@@ -1380,6 +1380,13 @@ export default function TheaterPage() {
           <FinancialBar slug={conflict.slug} />
         )}
         </div>{/* end map column */}
+
+        {/* Mobile-only finance panel */}
+        {isMobile && mobileTab === 'finance' && (
+          <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-base)' }}>
+            <FinancialBar slug={conflict.slug} />
+          </div>
+        )}
       </div>{/* end main content row */}
 
       {/* ── Mobile bottom tab bar ────────────────────────────── */}
@@ -1389,9 +1396,10 @@ export default function TheaterPage() {
           background: 'var(--bg-surface)', borderTop: '1px solid var(--border)',
         }}>
           {([
-            { id: 'map',     label: '◉ MAP',     count: null },
-            { id: 'intel',   label: '≡ INTEL',   count: incidents.length || null },
-            { id: 'posture', label: '⊞ POSTURE', count: null },
+            { id: 'map',     label: '◉ MAP',    count: null },
+            { id: 'intel',   label: '≡ INTEL',  count: incidents.length || null },
+            { id: 'posture', label: '⊞ POST',   count: null },
+            { id: 'finance', label: '$ FIN',    count: null },
           ] as const).map(tab => {
             const active = mobileTab === tab.id
             return (
