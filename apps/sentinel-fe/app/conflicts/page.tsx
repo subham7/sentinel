@@ -201,9 +201,8 @@ export default function ConflictsPage() {
       }}>
         {/* Globe */}
         <div style={{
-          flex: 1,
-          height: isMobile ? '40vh' : undefined,
-          flexShrink: isMobile ? 0 : undefined,
+          flex: isMobile ? 'none' : 1,
+          height: isMobile ? '35vh' : undefined,
           position: 'relative', background: '#030508',
         }}>
           <ConflictGlobe
@@ -253,7 +252,7 @@ export default function ConflictsPage() {
           <div style={{
             flex: 1, overflowY: 'auto', padding: 12,
             display: 'grid',
-            gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(280px, 1fr))' : '1fr',
+            gridTemplateColumns: '1fr',
             gap: 10, alignContent: 'start',
           }}>
             {ALL_CONFLICTS.map(conflict => {

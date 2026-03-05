@@ -38,7 +38,16 @@ function AnimatedCount({ value }: { value: number | null }) {
 }
 
 export default function GlobalIncidentCounter() {
-  const [stats, setStats] = useState<GlobalStats | null>(null)
+  const [stats,  setStats]  = useState<GlobalStats | null>(null)
+  const [mobile, setMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    setMobile(mq.matches)
+    const h = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -52,26 +61,37 @@ export default function GlobalIncidentCounter() {
     return () => clearInterval(t)
   }, [])
 
-  const items = [
-    { label: 'ACTIVE THEATERS', value: stats?.activeTheaters ?? null, color: '#ef4444' },
-    { label: '24H INCIDENTS',   value: stats?.incidents24h   ?? null, color: '#f97316' },
-    { label: 'LIVE TRACKS',     value: stats?.liveTracks     ?? null, color: '#00b0ff' },
-    { label: 'VESSELS DARK',    value: stats?.vesselsDark    ?? null, color: '#eab308' },
-  ]
+  // Shorter labels on mobile to fit 2×2 grid
+  const items = mobile
+    ? [
+        { label: 'THEATERS', value: stats?.activeTheaters ?? null, color: '#ef4444' },
+        { label: '24H INC',  value: stats?.incidents24h   ?? null, color: '#f97316' },
+        { label: 'TRACKS',   value: stats?.liveTracks     ?? null, color: '#00b0ff' },
+        { label: 'AIS DARK', value: stats?.vesselsDark    ?? null, color: '#eab308' },
+      ]
+    : [
+        { label: 'ACTIVE THEATERS', value: stats?.activeTheaters ?? null, color: '#ef4444' },
+        { label: '24H INCIDENTS',   value: stats?.incidents24h   ?? null, color: '#f97316' },
+        { label: 'LIVE TRACKS',     value: stats?.liveTracks     ?? null, color: '#00b0ff' },
+        { label: 'VESSELS DARK',    value: stats?.vesselsDark    ?? null, color: '#eab308' },
+      ]
 
   return (
     <div style={{
-      display: 'flex', flexShrink: 0, overflowX: 'auto',
+      display: mobile ? 'grid' : 'flex',
+      gridTemplateColumns: mobile ? '1fr 1fr' : undefined,
+      flexShrink: 0,
       borderBottom: '1px solid var(--border)',
       background: 'var(--bg-surface)',
-      scrollbarWidth: 'none',
     }}>
       {items.map((item, i) => (
         <div key={item.label} style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          padding: '5px 14px',
-          borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
-          flexShrink: 0,
+          padding: mobile ? '6px 12px' : '5px 14px',
+          borderLeft: !mobile && i > 0 ? '1px solid var(--border)' : 'none',
+          borderBottom: mobile && i < 2 ? '1px solid var(--border)' : 'none',
+          borderRight: mobile && i % 2 === 0 ? '1px solid var(--border)' : 'none',
+          flexShrink: mobile ? undefined : 0,
         }}>
           <span style={{
             fontFamily: "'Share Tech Mono', monospace",
@@ -84,7 +104,7 @@ export default function GlobalIncidentCounter() {
             fontFamily: "'Orbitron', monospace",
             fontSize: 13, fontWeight: 700,
             color: item.color,
-            minWidth: 32, textAlign: 'right',
+            minWidth: 28, textAlign: 'right',
           }}>
             <AnimatedCount value={item.value} />
           </span>
